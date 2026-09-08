@@ -4,7 +4,7 @@ A Laravel platform hosting a set of AI-powered tools — each one solving a real
 problem rather than wrapping a chat box. Built around a capability-based AI abstraction
 that supports multiple providers (OpenAI, Anthropic, Google, DeepL) behind one clean seam.
 
-> **Status:** architecture and design phase. Implementation begins with Phase 1.
+> **Status:** Phase 1 (AI core + transport) is built and tested. Phase 2 is the `AiGateway`.
 
 ## Why this exists
 
@@ -38,9 +38,48 @@ Highlights:
 - **Dual entry points** — Livewire UI and a REST API over one service layer, with the
   UI calling the layer directly rather than round-tripping through our own HTTP
 
+## What exists today
+
+Phase 1 — the AI core and its transport, with 72 tests.
+
+```
+app/
+├── AI/
+│   ├── Capability.php            enum: the axis the layer grows along
+│   ├── ModelRegistry.php         config/ai.php -> typed ResolvedModel
+│   ├── ProviderFactory.php       one typed method per capability
+│   ├── Contracts/                AiProvider, TextGenerator, Translator
+│   ├── Requests/                 command objects that dispatch themselves
+│   ├── Results/                  TextResult, TranslationResult, TokenUsage
+│   └── Providers/                AnthropicProvider, DeepLProvider
+└── Clients/
+    ├── BaseHttpClient.php        the only place raw HTTP happens
+    └── ServerSentEvents.php      SSE framing, vendor-agnostic
+```
+
+Two providers rather than one, on purpose: `AnthropicProvider` generates text
+(synchronously and streaming), `DeepLProvider` implements `Translator` **only**.
+The second is what makes the capability argument enforceable rather than merely
+stated — handing a DeepL model to code that generates text is a type error, not
+a runtime surprise.
+
+```bash
+composer install
+cp .env.example .env && php artisan key:generate
+php artisan test          # 72 passing
+```
+
+No API key is needed to run the suite. Every provider's traffic goes through
+`BaseHttpClient`, so `Http::fake()` stands in for all of them — which is why no
+fake-provider class ships in `app/`.
+
+To make real calls, set `ANTHROPIC_API_KEY` (and `DEEPL_API_KEY`) in `.env`.
+`*_BASE_URL` and `*_PROXY` are configurable per provider, so egress can be
+re-pointed without touching a provider class.
+
 ## Stack
 
-Laravel · Livewire 3 · MySQL · FrankenPHP (target deployment)
+Laravel 13 · PHP 8.4 · Livewire 3 · MySQL · FrankenPHP (target deployment)
 
 ## Roadmap
 
