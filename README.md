@@ -4,7 +4,7 @@ A Laravel platform hosting a set of AI-powered tools — each one solving a real
 problem rather than wrapping a chat box. Built around a capability-based AI abstraction
 that supports multiple providers (OpenAI, Anthropic, Google, DeepL) behind one clean seam.
 
-> **Status:** Phase 1 (AI core + transport) is built and tested. Phase 2 is the `AiGateway`.
+> **Status:** Phases 1-2 built and tested (116 tests). Phase 3 delivers the first working tool.
 
 ## Why this exists
 
@@ -40,22 +40,36 @@ Highlights:
 
 ## What exists today
 
-Phase 1 — the AI core and its transport, with 72 tests.
+Phases 1-2 — the AI core, its transport, and the gateway that mediates them. 116 tests.
 
 ```
 app/
 ├── AI/
 │   ├── Capability.php            enum: the axis the layer grows along
+│   ├── AiGateway.php             the single choke point: cache, fallback, logging
+│   ├── ModelPolicy.php           which models a tool may use, in what order
+│   ├── ModelResolver.php         policy + tier + user choice -> a model chain
 │   ├── ModelRegistry.php         config/ai.php -> typed ResolvedModel
+│   ├── AiResponseCache.php       a cache is not a repository
 │   ├── ProviderFactory.php       one typed method per capability
 │   ├── Contracts/                AiProvider, TextGenerator, Translator
 │   ├── Requests/                 command objects that dispatch themselves
 │   ├── Results/                  TextResult, TranslationResult, TokenUsage
 │   └── Providers/                AnthropicProvider, DeepLProvider
+├── Usage/
+│   ├── RunContext.php            who is calling, under what plan
+│   └── UsageRecord.php           one audit row, before it reaches a store
+├── Repositories/                 UsageLogRepository (+ Eloquent impl)
 └── Clients/
     ├── BaseHttpClient.php        the only place raw HTTP happens
     └── ServerSentEvents.php      SSE framing, vendor-agnostic
 ```
+
+The gateway has **one** execution method and never names a capability — the
+request dispatches itself. Adding video generation is a new request class and a
+new interface; `AiGateway` is not edited. Caching, model fallback, cost
+accounting and usage logging live there once instead of once per provider (four
+copies that drift) or once per tool (fifteen copies).
 
 Two providers rather than one, on purpose: `AnthropicProvider` generates text
 (synchronously and streaming), `DeepLProvider` implements `Translator` **only**.
@@ -66,7 +80,8 @@ a runtime surprise.
 ```bash
 composer install
 cp .env.example .env && php artisan key:generate
-php artisan test          # 72 passing
+php artisan migrate
+php artisan test          # 116 passing
 ```
 
 No API key is needed to run the suite. Every provider's traffic goes through

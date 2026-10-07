@@ -3,9 +3,10 @@
 **Version 5**
 Laravel · Capability-Based AI Layer · Livewire UI + REST API · Streaming · Usage Quotas
 
-> **Status:** Phase 1 is built and tested. This revision folds the implementation
-> back into the specification — every change below came from writing the code and
-> finding that the v4 text did not survive contact with a compiler.
+> **Status:** Phases 1 and 2 are built and tested (116 tests). This revision folds
+> the implementation back into the specification — every change below came from
+> writing the code and finding that the v4 text did not survive contact with a
+> compiler.
 >
 > | Corrected in v5 | Why |
 > |---|---|
@@ -256,6 +257,15 @@ final class AiGateway
 ```
 
 Note that the gateway calls `executeOn($this->factory, $model)` and never names a capability. It has no `match` statement, no list of capabilities, and no way to find out how many exist. That is the property §6 is protecting.
+
+**Cache and fallback interleave in one pass.** The sketch above resolves a single model; the implementation resolves a *chain* (§8.1) and walks it, consulting each model's cache immediately before that model would be called. Separating the two — scanning every cache first, then attempting each model — looks equivalent and is not: it serves a cached **fallback** answer while the preferred model is perfectly healthy, silently returning worse output. Checking each cache in preference order keeps both properties that matter:
+
+- the first choice wins whenever it can answer;
+- a fallback still uses its own cache, so a persistently-down primary does not mean re-buying the fallback on every call.
+
+**Failures are logged per attempt, not per call.** A chain that tries three models writes three rows. Logging once per call would hide a vendor that is quietly failing over on every single request — the cost shows up on the invoice, and nowhere else.
+
+**Fallback is for transport failures only.** A rate limit, an outage, or a timeout might not affect the next vendor. A malformed request or a content refusal will fail identically everywhere, so walking the chain only multiplies the latency of a certain failure — and shopping a refused prompt around other models is precisely the wrong behaviour to build in.
 
 **Why no `complete()` method.** An earlier draft gave the gateway `complete()`, then would have needed `translate()`, `generateVideo()`, `transcribe()`, `describeImage()`… Every new modality would edit a central class — a direct violation of Open/Closed. The gateway must not know how many kinds of AI work exist.
 
@@ -632,6 +642,10 @@ public function stream(StreamableRequest $request, RunContext $ctx): \Generator
 }
 ```
 
+**An aborted stream has no result.** The gateway's `stream()` returns the assembled result through the generator, or `null` when the caller disconnected partway. Inventing a result from the buffer would cache a truncation and serve it to everyone who asks next — so a partial stream is logged with `status = aborted` and deliberately not cached.
+
+**Streaming cannot fall back once a fragment has left.** The chain is walked exactly as in §5, but only until the first `yield`. After that, switching models would re-send text the caller has already rendered, and bill us twice for it. Before the first fragment, a switch is invisible and free.
+
 Three rules that are easy to get wrong and expensive when you do:
 
 1. **Reserve quota before the stream opens.** Once tokens are flowing there is no way to stop and charge.
@@ -867,9 +881,10 @@ app/
 │   ├── ModelRegistry.php                ✅
 │   ├── ResolvedModel.php                ✅
 │   ├── ProviderFactory.php              ✅
-│   ├── AiGateway.php                    ← phase 2
-│   ├── ModelPolicy.php                  ← phase 2
-│   ├── AiResponseCache.php              ← phase 2
+│   ├── AiGateway.php                    ✅  run() + stream()
+│   ├── ModelPolicy.php                  ✅
+│   ├── ModelResolver.php                ✅  policy + tier + user choice
+│   ├── AiResponseCache.php              ✅
 │   ├── Contracts/
 │   │   ├── AiProvider.php               ✅
 │   │   ├── TextGenerator.php            ✅
@@ -899,11 +914,12 @@ app/
 │   └── Exceptions/                      ✅
 │
 ├── Usage/                               # quota + cost control
-│   ├── QuotaGuard.php
-│   ├── Reservation.php
-│   ├── UnitPricing.php
-│   ├── CostCircuitBreaker.php
-│   └── RunContext.php
+│   ├── RunContext.php                   ✅  caller, tier, policy
+│   ├── UsageRecord.php                  ✅
+│   ├── CostCircuitBreaker.php           ← phase 3
+│   ├── QuotaGuard.php                   ← phase 4
+│   ├── Reservation.php                  ← phase 4
+│   └── UnitPricing.php                  ← phase 4
 │
 ├── Tools/                               # tool definitions + registry
 │   ├── Contracts/ToolInterface.php
@@ -928,7 +944,7 @@ app/
 ├── Http/Controllers/Api/V1/
 ├── Livewire/
 ├── Models/
-├── Repositories/UsageLogRepository.php
+├── Repositories/                        ✅  interface + Eloquent impl
 └── Providers/
     ├── AiServiceProvider.php            ✅  deferred; factory + model registry
     └── ToolServiceProvider.php          ← phase 3; tool discovery + registry
@@ -985,7 +1001,7 @@ Ordered so that something demonstrable exists early. Running out of momentum bef
 | Phase | Work | Deliverable |
 |---|---|---|
 | 1 ✅ | `BaseHttpClient` + `ServerSentEvents` + exception layer + `Capability` + capability interfaces + `AiRequest` + `ModelRegistry` + two real providers (`Anthropic` sync **and** stream, `DeepL` translation-only) + `ProviderFactory` + `config/ai.php` | AI core + transport |
-| 2 | `AiGateway` + `AiResponseCache` + `ModelPolicy` + `usage_logs` + `UsageLogRepository` | Mediation layer |
+| 2 ✅ | `AiGateway` (sync + stream) + `AiResponseCache` + `ModelPolicy` + `ModelResolver` + `RunContext` + `usage_logs` + `UsageLogRepository` | Mediation layer |
 | 3 | `ToolRegistry` + `Field` schema + generic form renderer + first tool (Text Transformer) + Livewire page with `wire:stream` + **`throttle` on tool routes + daily spend cap** | 🎯 **First working, demoable thing** |
 | 4 | Auth (Breeze) + `plans` + `usage_counters` + reserve/commit + guest IP limits + per-user quotas | Business model |
 | 5 | Catalog UI (grid, categories, tool pages) + content files + SEO (sitemap, JSON-LD, meta) | A real site |
@@ -1011,6 +1027,9 @@ The REST API stays in v1 but lands after the tools exist, because an API designe
 - **Operational Awareness** — quota reservation with refund-on-failure, spend circuit breakers, abort detection on streams, Octane-safe design
 - **SEO** — server-rendered, registry-driven sitemap and structured data
 
-**Next step:** Phase 2 — `AiGateway`, `AiResponseCache`, `ModelPolicy`, and `usage_logs`.
+**Next step:** Phase 3 — `ToolRegistry`, the `Field` schema, a generic form renderer,
+the first tool, and a Livewire page with `wire:stream`. Plus the two spend guards that
+moved into this phase, because it is the first one to put a public tool on platform keys.
 
-Phase 1 is complete: transport, the capability model, two providers, and 72 tests covering them.
+Phases 1 and 2 are complete: transport, the capability model, two providers, the
+gateway with caching, model fallback and usage logging — 116 tests covering them.

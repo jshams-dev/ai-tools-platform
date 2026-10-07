@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\AI\AiGateway;
+use App\AI\AiResponseCache;
 use App\AI\ModelRegistry;
+use App\AI\ModelResolver;
 use App\AI\ProviderFactory;
+use App\Repositories\EloquentUsageLogRepository;
+use App\Repositories\UsageLogRepository;
+use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Support\ServiceProvider;
 
@@ -14,8 +20,8 @@ use Illuminate\Support\ServiceProvider;
  *
  * Split from ToolServiceProvider (which arrives with the tool layer) because
  * providers should be divided by bounded context, not by class. This one owns
- * vendors and models; that one will own tool discovery. AppServiceProvider
- * stays for genuinely application-wide concerns.
+ * vendors, models, and the gateway; that one will own tool discovery.
+ * AppServiceProvider stays for genuinely application-wide concerns.
  *
  * Deferred: it only ever binds, never boots. Most requests — every static page
  * and asset — touch no AI at all, and there is no reason for them to build a
@@ -34,18 +40,39 @@ final class AiServiceProvider extends ServiceProvider implements DeferrableProvi
             providers: config('ai.providers', []),
             http: config('ai.http', []),
         ));
+
+        $this->app->singleton(ModelResolver::class);
+
+        $this->app->singleton(AiResponseCache::class, fn ($app): AiResponseCache => new AiResponseCache(
+            // An explicit store, not the default: AI results are large and
+            // long-lived, and sharing a store with sessions means one flush
+            // takes out both.
+            cache: $app->make(CacheFactory::class)->store(config('ai.cache.store')),
+            ttlSeconds: (int) config('ai.cache.ttl', 86_400),
+        ));
+
+        $this->app->bind(UsageLogRepository::class, EloquentUsageLogRepository::class);
+
+        $this->app->singleton(AiGateway::class);
     }
 
     /**
-     * Both are singletons holding only configuration, so they are safe to
-     * reuse across requests under Octane or FrankenPHP. Nothing here stores
-     * request-scoped state, which is the rule that keeps the eventual move to
-     * FrankenPHP a deployment change rather than a rewrite.
+     * Everything here holds configuration only — nothing request-scoped — so
+     * these are safe as singletons under Octane or FrankenPHP. That rule is
+     * what keeps the eventual move to FrankenPHP a deployment change rather
+     * than a rewrite; request-scoped state travels in RunContext instead.
      *
      * @return list<string>
      */
     public function provides(): array
     {
-        return [ModelRegistry::class, ProviderFactory::class];
+        return [
+            ModelRegistry::class,
+            ProviderFactory::class,
+            ModelResolver::class,
+            AiResponseCache::class,
+            UsageLogRepository::class,
+            AiGateway::class,
+        ];
     }
 }

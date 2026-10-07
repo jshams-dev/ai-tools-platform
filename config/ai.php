@@ -135,6 +135,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Response cache
+    |--------------------------------------------------------------------------
+    |
+    | An identical call should not be paid for twice. The store is named
+    | explicitly rather than inherited from the default: AI results are large
+    | and long-lived, and sharing a store with sessions means one flush takes
+    | out both.
+    |
+    | Note that this reads CACHE_STORE rather than calling config('cache.default') —
+    | config files are loaded before any of them can read another, so that call
+    | would resolve to null here.
+    |
+    */
+
+    'cache' => [
+        'store' => env('AI_CACHE_STORE', env('CACHE_STORE', 'database')),
+        'ttl' => (int) env('AI_CACHE_TTL', 86400),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | HTTP transport
     |--------------------------------------------------------------------------
     */
