@@ -156,6 +156,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Daily spend cap
+    |--------------------------------------------------------------------------
+    |
+    | Platform-owned keys behind a public page are an open door to our own
+    | credit card. Once today's recorded spend reaches this ceiling, the gateway
+    | refuses every call that would reach a vendor — cached answers are still
+    | served, since they cost nothing.
+    |
+    | The total is read from usage_logs and cached for `recompute_seconds`, so
+    | the cap can be overshot by at most one window's worth of traffic. The
+    | vendor-side limit in each provider's dashboard is the backstop for that.
+    |
+    */
+
+    'spend' => [
+        'daily_cap_usd' => (float) env('AI_DAILY_SPEND_CAP_USD', 5.0),
+        'recompute_seconds' => (int) env('AI_SPEND_RECOMPUTE_SECONDS', 60),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | HTTP transport
     |--------------------------------------------------------------------------
     */

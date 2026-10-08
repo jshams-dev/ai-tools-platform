@@ -12,6 +12,7 @@ use App\Clients\Exceptions\HttpClientException;
 use App\Clients\Exceptions\RateLimitException;
 use App\Models\UsageLog;
 use App\Repositories\UsageLogRepository;
+use App\Usage\CostCircuitBreaker;
 use App\Usage\RunContext;
 use App\Usage\UsageRecord;
 
@@ -29,8 +30,8 @@ use App\Usage\UsageRecord;
  * That is what makes adding video generation a new request class plus a new
  * interface, touching nothing in this file.
  *
- * It is also the reason the spend cap, when it arrives, is one `if`: there is
- * exactly one place to put it.
+ * It is also the reason the daily spend cap is one `if`: there is exactly one
+ * place to put it.
  */
 final class AiGateway
 {
@@ -39,6 +40,7 @@ final class AiGateway
         private readonly ProviderFactory $factory,
         private readonly AiResponseCache $cache,
         private readonly UsageLogRepository $logs,
+        private readonly CostCircuitBreaker $breaker,
     ) {}
 
     /**
@@ -72,6 +74,10 @@ final class AiGateway
 
                 return $hit;
             }
+
+            // After the cache, not before: a hit costs nothing, so refusing
+            // it once the budget is gone would only make the site worse.
+            $this->breaker->assertWithinDailyBudget();
 
             $startedAt = hrtime(true);
 
@@ -144,6 +150,8 @@ final class AiGateway
 
                 return $hit;
             }
+
+            $this->breaker->assertWithinDailyBudget();
 
             $startedAt = hrtime(true);
             $yielded = false;

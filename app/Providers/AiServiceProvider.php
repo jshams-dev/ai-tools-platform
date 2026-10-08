@@ -11,6 +11,7 @@ use App\AI\ModelResolver;
 use App\AI\ProviderFactory;
 use App\Repositories\EloquentUsageLogRepository;
 use App\Repositories\UsageLogRepository;
+use App\Usage\CostCircuitBreaker;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Support\ServiceProvider;
@@ -53,6 +54,13 @@ final class AiServiceProvider extends ServiceProvider implements DeferrableProvi
 
         $this->app->bind(UsageLogRepository::class, EloquentUsageLogRepository::class);
 
+        $this->app->singleton(CostCircuitBreaker::class, fn ($app): CostCircuitBreaker => new CostCircuitBreaker(
+            logs: $app->make(UsageLogRepository::class),
+            cache: $app->make(CacheFactory::class)->store(),
+            dailyCapUsd: (float) config('ai.spend.daily_cap_usd', 5.0),
+            recomputeSeconds: (int) config('ai.spend.recompute_seconds', 60),
+        ));
+
         $this->app->singleton(AiGateway::class);
     }
 
@@ -72,6 +80,7 @@ final class AiServiceProvider extends ServiceProvider implements DeferrableProvi
             ModelResolver::class,
             AiResponseCache::class,
             UsageLogRepository::class,
+            CostCircuitBreaker::class,
             AiGateway::class,
         ];
     }
