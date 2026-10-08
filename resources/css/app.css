@@ -4,6 +4,83 @@
 @source '../../storage/framework/views/*.php';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    /* Vazirmatn covers Persian and Arabic, which Instrument Sans does not. */
+    --font-sans: 'Instrument Sans', 'Vazirmatn', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+        'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+[x-cloak] {
+    display: none !important;
+}
+
+@layer components {
+    .brand-mark {
+        @apply grid shrink-0 place-items-center bg-linear-to-br from-violet-500 via-fuchsia-500 to-orange-400 text-white shadow-sm;
+    }
+
+    .icon-button {
+        @apply grid size-9 shrink-0 place-items-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100;
+    }
+
+    .pill {
+        @apply inline-flex h-8 items-center gap-1.5 rounded-full border border-zinc-200 px-3 text-[13px] font-medium whitespace-nowrap text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-700/80 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100;
+    }
+
+    .menu {
+        @apply absolute z-20 w-56 rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-xl shadow-zinc-950/10 dark:border-zinc-800 dark:bg-zinc-900;
+    }
+
+    .menu-item {
+        @apply flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-zinc-100 dark:hover:bg-zinc-800;
+    }
+
+    /*
+     * Streaming reply. Empty until the first fragment lands, so the "thinking"
+     * shimmer is pure CSS and disappears on its own; once text arrives, a
+     * caret follows it.
+     */
+    .stream-target:empty::before {
+        content: 'Thinking…';
+        @apply bg-linear-to-r from-zinc-400 via-zinc-800 to-zinc-400 bg-clip-text text-transparent dark:from-zinc-500 dark:via-zinc-100 dark:to-zinc-500;
+        background-size: 200% 100%;
+        animation: shimmer 1.6s linear infinite;
+    }
+
+    .stream-target:not(:empty)::after {
+        content: '';
+        @apply ms-0.5 inline-block h-[1.1em] w-[0.5em] translate-y-[0.2em] rounded-[2px] bg-current opacity-70;
+        animation: caret 1s step-end infinite;
+    }
+
+    /* Markdown in replies — a small, chat-sized cousin of a prose plugin. */
+    .prose-chat {
+        @apply text-[15px] leading-7 break-words;
+
+        & > * + * { @apply mt-4; }
+        & h1, & h2, & h3, & h4 { @apply font-semibold tracking-tight; }
+        & h1 { @apply text-xl; }
+        & h2 { @apply text-lg; }
+        & h3, & h4 { @apply text-base; }
+        & ul { @apply list-disc ps-6; }
+        & ol { @apply list-decimal ps-6; }
+        & li + li { @apply mt-1.5; }
+        & li::marker { @apply text-zinc-400; }
+        & strong { @apply font-semibold; }
+        & a { @apply underline decoration-zinc-300 underline-offset-2 hover:decoration-current; }
+        & blockquote { @apply border-s-2 border-zinc-300 ps-4 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400; }
+        & hr { @apply border-zinc-200 dark:border-zinc-800; }
+        & :not(pre) > code { @apply rounded-md bg-zinc-100 px-1.5 py-0.5 text-[0.875em] dark:bg-zinc-800; }
+        & pre { @apply overflow-x-auto rounded-xl bg-zinc-100 p-4 text-sm leading-6 dark:bg-zinc-900; }
+        & table { @apply w-full border-collapse text-sm; }
+        & th, & td { @apply border border-zinc-200 px-3 py-1.5 text-start dark:border-zinc-800; }
+    }
+}
+
+@keyframes shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+}
+
+@keyframes caret {
+    50% { opacity: 0; }
 }
