@@ -19,6 +19,8 @@ final class ToolPageController extends Controller
 
         return view('tools.show', [
             'tool' => $tool,
+            // Not `component`: inside a Blade component that name is taken.
+            'workspace' => $registry->definitionFor($tool)->component() ?? 'tool-workspace',
             'tools' => $registry->all(),
         ]);
     }

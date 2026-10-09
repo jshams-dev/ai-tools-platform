@@ -6,11 +6,12 @@ namespace Tests\Feature;
 
 use App\Livewire\ToolWorkspace;
 use App\Models\UsageLog;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Database\Seeders\ToolCatalogSeeder;
 use Illuminate\Support\Facades\Http;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Concerns\SeedsAiCatalog;
 use Tests\TestCase;
 
 /**
@@ -20,37 +21,41 @@ use Tests\TestCase;
  */
 final class ToolWorkspaceTest extends TestCase
 {
-    use RefreshDatabase;
+    use SeedsAiCatalog;
 
     protected function setUp(): void
     {
         parent::setUp();
 
+        // The page has nothing to show without its tool rows.
+        $this->seed(ToolCatalogSeeder::class);
         $this->withoutVite();
 
         config([
-            'ai.providers.anthropic.key' => 'sk-ant-test-key',
+            'ai.credentials.groq' => 'gsk-test-key',
             'ai.cache.store' => 'array',
         ]);
     }
 
     /**
+     * Fakes the tool's default model (Groq, OpenAI format) streaming these
+     * fragments.
+     *
      * @param  list<string>  $fragments
      */
     private function fakeStream(array $fragments): void
     {
-        $events = "event: message_start\n".'data: {"type":"message_start","message":{"usage":{"input_tokens":40}}}'."\n\n";
+        $events = '';
 
         foreach ($fragments as $text) {
-            $events .= "event: content_block_delta\n".'data: '.json_encode([
-                'type' => 'content_block_delta',
-                'delta' => ['type' => 'text_delta', 'text' => $text],
-            ])."\n\n";
+            $events .= 'data: '.json_encode(['choices' => [['delta' => ['content' => $text]]]])."\n\n";
         }
 
-        $events .= "event: message_delta\n".'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":12}}'."\n\n";
+        $events .= 'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}'."\n\n";
+        $events .= 'data: {"choices":[],"usage":{"prompt_tokens":40,"completion_tokens":12}}'."\n\n";
+        $events .= "data: [DONE]\n\n";
 
-        Http::fake(['api.anthropic.com/*' => Http::response($events)]);
+        Http::fake(['api.groq.com/*' => Http::response($events)]);
     }
 
     private function workspace(): Testable

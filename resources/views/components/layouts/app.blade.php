@@ -58,17 +58,17 @@
             <p class="mt-6 px-3 pb-2 text-xs font-medium text-zinc-500">{{ __('Tools') }}</p>
 
             <nav class="flex flex-col gap-0.5">
-                @foreach ($tools as $slug => $item)
+                @foreach ($tools as $item)
                     <a
-                        href="{{ route('tools.show', $slug) }}"
+                        href="{{ route('tools.show', $item->slug) }}"
                         @class([
                             'group flex flex-col rounded-xl px-3 py-2 transition',
-                            'bg-zinc-200/70 dark:bg-zinc-800' => $slug === $current,
-                            'hover:bg-zinc-200/50 dark:hover:bg-zinc-800/60' => $slug !== $current,
+                            'bg-zinc-200/70 dark:bg-zinc-800' => $item->slug === $current,
+                            'hover:bg-zinc-200/50 dark:hover:bg-zinc-800/60' => $item->slug !== $current,
                         ])
                     >
-                        <span class="text-sm font-medium">{{ $item->name() }}</span>
-                        <span class="line-clamp-1 text-xs text-zinc-500">{{ $item->description() }}</span>
+                        <span class="text-sm font-medium">{{ $item->name }}</span>
+                        <span class="line-clamp-1 text-xs text-zinc-500">{{ $item->description }}</span>
                     </a>
                 @endforeach
             </nav>

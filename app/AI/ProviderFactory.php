@@ -104,7 +104,7 @@ final class ProviderFactory
         }
 
         $config = $this->providers[$name] ?? throw new UnknownModelException(
-            "No provider registered under '{$name}'. Check the 'providers' map in config/ai.php."
+            "No provider registered under '{$name}'. Check the ai_providers table (is it seeded and active?)."
         );
 
         /** @var class-string<AiProvider> $driver */

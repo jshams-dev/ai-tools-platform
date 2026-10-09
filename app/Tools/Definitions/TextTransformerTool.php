@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Tools\Definitions;
 
-use App\AI\ModelPolicy;
 use App\Services\Tools\TextTransformer\OutputLanguage;
 use App\Services\Tools\TextTransformer\TextTransformerHandler;
 use App\Services\Tools\TextTransformer\Tone;
@@ -12,26 +11,15 @@ use App\Services\Tools\TextTransformer\TransformMode;
 use App\Tools\Contracts\ToolInterface;
 use App\Tools\Schema\Field;
 
+/**
+ * The Text Transformer's fields and behaviour. Its name, description, and
+ * models are rows in the database — see ToolCatalogSeeder.
+ */
 final class TextTransformerTool implements ToolInterface
 {
     public function slug(): string
     {
         return 'text-transformer';
-    }
-
-    public function name(): string
-    {
-        return 'Text Transformer';
-    }
-
-    public function description(): string
-    {
-        return 'Rewrite, summarize, proofread, or translate any text — in the tone you need.';
-    }
-
-    public function category(): string
-    {
-        return 'writing';
     }
 
     public function inputSchema(): array
@@ -78,20 +66,6 @@ final class TextTransformerTool implements ToolInterface
     public function handler(): string
     {
         return TextTransformerHandler::class;
-    }
-
-    public function modelPolicy(): ModelPolicy
-    {
-        return ModelPolicy::tiered(
-            free: ['claude-haiku'],
-            pro: ['claude-sonnet', 'claude-haiku'],
-            userSelectable: true,
-        );
-    }
-
-    public function costUnits(): int
-    {
-        return 1;
     }
 
     public function component(): ?string

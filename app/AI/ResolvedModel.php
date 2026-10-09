@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\AI;
 
 /**
- * One row of config/ai.php's `models` map, turned into a typed object.
+ * One row of the ai_models table, turned into a typed object.
  *
  * Resolution happens once, above the provider layer; the provider is handed
  * the answer rather than looking anything up itself. That is what keeps a
@@ -42,6 +42,13 @@ final readonly class ResolvedModel
         public float $inputCostPerMillion = 0.0,
         public float $outputCostPerMillion = 0.0,
         public ?int $maxOutputTokens = null,
+        /**
+         * Extra request parameters this model needs, merged into the payload
+         * by drivers that support it — e.g. ['reasoning_effort' => 'low'].
+         *
+         * @var array<string, mixed>
+         */
+        public array $requestOptions = [],
     ) {}
 
     public function supports(Capability $capability): bool

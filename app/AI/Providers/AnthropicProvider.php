@@ -30,7 +30,7 @@ final class AnthropicProvider implements TextGenerator
     private const DEFAULT_MAX_TOKENS = 4096;
 
     /**
-     * @param  array<string, mixed>  $config  This provider's config/ai.php row.
+     * @param  array<string, mixed>  $config  This provider's ai_providers row, plus its key.
      */
     public function __construct(
         private readonly BaseHttpClient $http,
@@ -61,8 +61,8 @@ final class AnthropicProvider implements TextGenerator
 
         $payload = $this->payload($request, $model) + ['stream' => true];
 
-        $chunks = $this->translatingErrors(
-            fn (): \Generator => $this->http->stream('POST', '/v1/messages', $payload, $this->headers())
+        $chunks = $this->translatingStreamErrors(
+            $this->http->stream('POST', '/v1/messages', $payload, $this->headers())
         );
 
         $text = '';
@@ -263,16 +263,39 @@ final class AnthropicProvider implements TextGenerator
         try {
             return $call();
         } catch (HttpClientException $e) {
-            $detail = $this->errorMessage($e->responseBody);
-
-            if ($detail === null) {
-                throw $e;
-            }
-
-            // Same class and same subclass state, so retry semantics and every
-            // catch block upstream keep working — only the message improves.
-            throw $e->withMessage("Anthropic: {$detail}");
+            throw $this->enriched($e);
         }
+    }
+
+    /**
+     * The streaming twin of translatingErrors().
+     *
+     * A generator does nothing until it is iterated, so the request — and any
+     * error it raises — happens on the first read, not when stream() is
+     * called. Wrapping the *call* in try/catch misses every streamed error;
+     * the iteration itself has to happen inside the try.
+     *
+     * @param  \Generator<int, string>  $chunks
+     * @return \Generator<int, string>
+     */
+    private function translatingStreamErrors(\Generator $chunks): \Generator
+    {
+        try {
+            yield from $chunks;
+        } catch (HttpClientException $e) {
+            throw $this->enriched($e);
+        }
+    }
+
+    /**
+     * Same class and same subclass state, so retry semantics and every catch
+     * block upstream keep working — only the message improves.
+     */
+    private function enriched(HttpClientException $e): HttpClientException
+    {
+        $detail = $this->errorMessage($e->responseBody);
+
+        return $detail === null ? $e : $e->withMessage("Anthropic: {$detail}");
     }
 
     private function errorMessage(?string $body): ?string

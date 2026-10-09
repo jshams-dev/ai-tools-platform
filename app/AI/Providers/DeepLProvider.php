@@ -29,7 +29,7 @@ use App\Clients\Exceptions\HttpClientException;
 final class DeepLProvider implements Translator
 {
     /**
-     * @param  array<string, mixed>  $config  This provider's config/ai.php row.
+     * @param  array<string, mixed>  $config  This provider's ai_providers row, plus its key.
      */
     public function __construct(
         private readonly BaseHttpClient $http,

@@ -23,7 +23,7 @@ final class ToolServiceProvider extends ServiceProvider implements DeferrablePro
     public function register(): void
     {
         $this->app->singleton(ToolRegistry::class, fn (): ToolRegistry => new ToolRegistry(
-            definitions: config('tools.definitions', []),
+            definitionClasses: config('tools.definitions', []),
         ));
 
         $this->app->singleton(ToolRunner::class, fn ($app): ToolRunner => new ToolRunner(

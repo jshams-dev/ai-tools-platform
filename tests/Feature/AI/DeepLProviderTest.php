@@ -14,10 +14,13 @@ use App\Clients\Exceptions\HttpClientException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Concerns\SeedsAiCatalog;
 use Tests\TestCase;
 
 final class DeepLProviderTest extends TestCase
 {
+    use SeedsAiCatalog;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -26,8 +29,8 @@ final class DeepLProviderTest extends TestCase
         // collapses to whitespace and the header assertions stop meaning
         // anything, which would hide a genuine auth-header bug.
         config([
-            'ai.providers.anthropic.key' => 'sk-ant-test-key',
-            'ai.providers.deepl.key' => 'deepl-test-key',
+            'ai.credentials.anthropic' => 'sk-ant-test-key',
+            'ai.credentials.deepl' => 'deepl-test-key',
         ]);
     }
 

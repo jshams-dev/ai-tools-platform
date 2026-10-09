@@ -8,6 +8,7 @@ use App\AI\Exceptions\ContentRefusedException;
 use App\AI\Exceptions\SpendCapExceededException;
 use App\AI\Exceptions\UnsupportedCapabilityException;
 use App\Clients\Exceptions\HttpClientException;
+use App\Models\Tool;
 use App\Tools\Contracts\ToolInterface;
 use App\Tools\Exceptions\ToolRateLimitedException;
 use App\Tools\Schema\Field;
@@ -64,10 +65,18 @@ final class ToolWorkspace extends Component
         $this->options = $this->defaultOptions();
     }
 
+    /** The tool's row: name, description, and the models it may use. */
     #[Computed]
-    public function tool(): ToolInterface
+    public function tool(): Tool
     {
         return app(ToolRegistry::class)->get($this->slug);
+    }
+
+    /** The tool's code: its fields and handler. */
+    #[Computed]
+    public function definition(): ToolInterface
+    {
+        return app(ToolRegistry::class)->definitionFor($this->tool);
     }
 
     public function send(ToolRunner $runner): void
@@ -80,7 +89,7 @@ final class ToolWorkspace extends Component
 
         // Validated here as well as in respond(): a bad input should show up
         // under the message box, not as a failed reply in the conversation.
-        $input = $runner->validate($this->tool, [...$this->options, $primary->name => $this->prompt]);
+        $input = $runner->validate($this->definition, [...$this->options, $primary->name => $this->prompt]);
 
         $this->messages[] = [
             'id' => Str::random(12),
@@ -116,7 +125,7 @@ final class ToolWorkspace extends Component
         $question = $this->messages[$index - 1];
 
         $ctx = RunContext::forGuest(
-            toolSlug: $this->tool->slug(),
+            toolSlug: $this->tool->slug,
             policy: $this->tool->modelPolicy(),
             ip: (string) request()->ip(),
             requestedModel: $this->model,
@@ -125,7 +134,7 @@ final class ToolWorkspace extends Component
         $buffer = '';
 
         try {
-            foreach ($runner->stream($this->tool, $question['input'] ?? [], $ctx) as $fragment) {
+            foreach ($runner->stream($this->definition, $question['input'] ?? [], $ctx) as $fragment) {
                 $buffer .= $fragment;
 
                 // wire:stream inserts what it receives as HTML. Model output
@@ -144,7 +153,7 @@ final class ToolWorkspace extends Component
 
     public function useStarter(int $index): void
     {
-        $starter = $this->tool->starters()[$index] ?? null;
+        $starter = $this->definition->starters()[$index] ?? null;
 
         if ($starter === null) {
             return;
@@ -170,18 +179,21 @@ final class ToolWorkspace extends Component
 
     public function render(): View
     {
+        $models = $this->tool->modelsFor(RunContext::TIER_GUEST);
+
         return view('livewire.tool-workspace', [
             'tool' => $this->tool,
+            'starters' => $this->definition->starters(),
             'primaryField' => $this->primaryField(),
             'settingFields' => $this->settingFields(),
-            'models' => $this->selectableModels(),
-            'defaultModel' => $this->tool->modelPolicy()->chainFor(RunContext::TIER_GUEST)[0] ?? null,
+            'models' => $models,
+            'defaultModel' => $models->first(),
         ]);
     }
 
     private function primaryField(): Field
     {
-        foreach ($this->tool->inputSchema() as $field) {
+        foreach ($this->definition->inputSchema() as $field) {
             if ($field->isPrimary()) {
                 return $field;
             }
@@ -196,23 +208,9 @@ final class ToolWorkspace extends Component
     private function settingFields(): array
     {
         return array_values(array_filter(
-            $this->tool->inputSchema(),
+            $this->definition->inputSchema(),
             fn (Field $field): bool => ! $field->isPrimary() && $field->type === Field::TYPE_SELECT,
         ));
-    }
-
-    /**
-     * Models the caller may pick between. Empty when there is no real choice,
-     * so the UI shows a label instead of a one-item menu.
-     *
-     * @return list<string>
-     */
-    private function selectableModels(): array
-    {
-        $policy = $this->tool->modelPolicy();
-        $chain = $policy->chainFor(RunContext::TIER_GUEST);
-
-        return $policy->userSelectable && count($chain) > 1 ? $chain : [];
     }
 
     /**

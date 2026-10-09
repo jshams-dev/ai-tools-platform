@@ -10,9 +10,9 @@ use App\AI\ModelPolicy;
 use App\AI\Requests\TextGenerationRequest;
 use App\Models\UsageLog;
 use App\Usage\RunContext;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Concerns\SeedsAiCatalog;
 use Tests\TestCase;
 
 /**
@@ -22,14 +22,14 @@ use Tests\TestCase;
  */
 final class CostCircuitBreakerTest extends TestCase
 {
-    use RefreshDatabase;
+    use SeedsAiCatalog;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         config([
-            'ai.providers.anthropic.key' => 'sk-ant-test-key',
+            'ai.credentials.anthropic' => 'sk-ant-test-key',
             'ai.cache.store' => 'array',
             'ai.spend.daily_cap_usd' => 1.0,
         ]);

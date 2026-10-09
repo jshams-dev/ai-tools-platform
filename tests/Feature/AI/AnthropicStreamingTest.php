@@ -11,9 +11,11 @@ use App\AI\ProviderFactory;
 use App\AI\Requests\TextGenerationRequest;
 use App\AI\ResolvedModel;
 use App\AI\Results\TextResult;
+use App\Clients\Exceptions\BadRequestException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Concerns\SeedsAiCatalog;
 use Tests\TestCase;
 
 /**
@@ -26,6 +28,8 @@ use Tests\TestCase;
  */
 final class AnthropicStreamingTest extends TestCase
 {
+    use SeedsAiCatalog;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -34,8 +38,8 @@ final class AnthropicStreamingTest extends TestCase
         // collapses to whitespace and the header assertions stop meaning
         // anything, which would hide a genuine auth-header bug.
         config([
-            'ai.providers.anthropic.key' => 'sk-ant-test-key',
-            'ai.providers.deepl.key' => 'deepl-test-key',
+            'ai.credentials.anthropic' => 'sk-ant-test-key',
+            'ai.credentials.deepl' => 'deepl-test-key',
         ]);
     }
 
@@ -170,6 +174,22 @@ final class AnthropicStreamingTest extends TestCase
             new TextGenerationRequest(userPrompt: 'Describe it.'),
             $this->model(),
         ));
+    }
+
+    #[Test]
+    public function a_rejected_stream_carries_the_vendors_explanation(): void
+    {
+        Http::fake(['api.anthropic.com/*' => Http::response(
+            ['type' => 'error', 'error' => ['message' => 'max_tokens: 999999 > 64000']],
+            400,
+        )]);
+
+        // The request is only sent on the first read of the stream, so error
+        // translation must wrap the iteration, not the call that creates it.
+        $this->expectException(BadRequestException::class);
+        $this->expectExceptionMessage('Anthropic: max_tokens: 999999 > 64000');
+
+        iterator_to_array($this->provider()->streamText(new TextGenerationRequest(userPrompt: 'Hi'), $this->model()));
     }
 
     #[Test]

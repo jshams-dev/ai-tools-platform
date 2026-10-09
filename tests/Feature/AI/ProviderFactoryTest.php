@@ -18,6 +18,7 @@ use App\AI\Requests\TranslationRequest;
 use App\AI\ResolvedModel;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Concerns\SeedsAiCatalog;
 use Tests\TestCase;
 
 /**
@@ -27,6 +28,8 @@ use Tests\TestCase;
  */
 final class ProviderFactoryTest extends TestCase
 {
+    use SeedsAiCatalog;
+
     private function factory(): ProviderFactory
     {
         return $this->app->make(ProviderFactory::class);

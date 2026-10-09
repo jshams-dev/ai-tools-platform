@@ -20,7 +20,7 @@ final readonly class TokenUsage
     ) {}
 
     /**
-     * Cost in USD, from the per-million-token prices in config/ai.php.
+     * Cost in USD, from the model's per-million-token prices (ai_models).
      *
      * Returns null when the vendor reported no usage — a translation API that
      * bills per character has no token counts to price, and inventing a zero

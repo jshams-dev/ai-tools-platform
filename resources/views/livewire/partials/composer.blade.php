@@ -65,15 +65,22 @@
             @endforeach
         </div>
 
-        @if ($models !== [])
+        @if ($models->count() > 1)
+            {{-- The tool's models from the database; the first is its default --}}
             <div
-                x-data="{ open: false, value: $wire.entangle('model') }"
+                x-data="{
+                    open: false,
+                    value: $wire.entangle('model'),
+                    fallback: @js($defaultModel->key),
+                    names: @js($models->pluck('name', 'key')),
+                    get current() { return this.value ?? this.fallback },
+                }"
                 x-on:keydown.escape.stop="open = false"
                 class="relative"
             >
-                <button type="button" x-on:click="open = ! open" class="pill" title="{{ __('Model') }}">
+                <button type="button" x-on:click="open = ! open" class="pill max-w-44" title="{{ __('Model') }}">
                     <x-icon name="bolt" class="size-3.5 opacity-60" />
-                    <span x-text="value ?? @js($defaultModel)">{{ $model ?? $defaultModel }}</span>
+                    <span class="truncate" x-text="names[current] ?? current">{{ $defaultModel->name }}</span>
                     <x-icon name="chevron-down" class="size-3.5 opacity-60" />
                 </button>
 
@@ -82,13 +89,21 @@
                     x-show="open"
                     x-on:click.outside="open = false"
                     x-transition.origin.bottom.right
-                    class="menu right-0 bottom-full mb-2"
+                    class="menu right-0 bottom-full mb-2 max-h-80 w-72 overflow-y-auto"
                 >
                     <p class="px-2.5 pt-1 pb-1.5 text-xs font-medium text-zinc-500">{{ __('Model') }}</p>
-                    @foreach ($models as $key)
-                        <button type="button" x-on:click="value = @js($key); open = false" class="menu-item">
-                            <span>{{ $key }}</span>
-                            <x-icon name="check" class="size-4" x-show="(value ?? @js($defaultModel)) === {{ Js::from($key) }}" />
+                    @foreach ($models as $option)
+                        <button type="button" x-on:click="value = @js($option->key); open = false" class="menu-item">
+                            <span class="flex min-w-0 flex-col">
+                                <span class="flex items-center gap-2">
+                                    <span class="truncate">{{ $option->name }}</span>
+                                    @if ($loop->first)
+                                        <span class="rounded-full bg-zinc-100 px-1.5 text-[11px] text-zinc-500 dark:bg-zinc-800">{{ __('Default') }}</span>
+                                    @endif
+                                </span>
+                                <span class="text-xs text-zinc-500">{{ $option->provider->name }}</span>
+                            </span>
+                            <x-icon name="check" class="size-4" x-show="current === {{ Js::from($option->key) }}" />
                         </button>
                     @endforeach
                 </div>
@@ -96,7 +111,7 @@
         @elseif ($defaultModel)
             <span class="hidden items-center gap-1 px-2 text-xs text-zinc-500 sm:inline-flex" title="{{ __('Model') }}">
                 <x-icon name="bolt" class="size-3.5" />
-                {{ $defaultModel }}
+                {{ $defaultModel->name }}
             </span>
         @endif
 

@@ -4,82 +4,108 @@ declare(strict_types=1);
 
 namespace App\Tools;
 
+use App\Models\Tool;
 use App\Tools\Contracts\ToolInterface;
 use App\Tools\Exceptions\ToolNotFoundException;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * The single source of truth for which tools exist (§14.2).
  *
- * Tools are code, so there is no table: the registry is built from the list
- * of definition classes in config/tools.php. Everything that enumerates tools
- * — routes, navigation, and later the catalog and sitemap — reads it from
- * here, which is what makes it worth more than a config array.
- *
- * Holds definitions only, which are immutable metadata, so it is safe as a
- * singleton under Octane.
+ * A tool has two halves that meet on its slug: a row in `tools` (name,
+ * description, status, models — editable without a deploy) and a definition
+ * class in config/tools.php (fields and handler — code). A tool is served only
+ * when both exist and the row is active, so switching a tool off is a database
+ * edit, and a half-finished definition never appears in the UI.
  */
 final class ToolRegistry
 {
     /** @var array<string, ToolInterface>|null */
-    private ?array $tools = null;
+    private ?array $definitions = null;
 
     /**
-     * @param  list<class-string<ToolInterface>>  $definitions  In display order.
+     * @param  list<class-string<ToolInterface>>  $definitionClasses
      */
-    public function __construct(private readonly array $definitions) {}
+    public function __construct(private readonly array $definitionClasses) {}
 
     /**
-     * @return array<string, ToolInterface> Keyed by slug, in display order.
+     * Active tools that have code behind them, in display order, with their
+     * models loaded — the model picker needs them on every page.
+     *
+     * @return Collection<int, Tool>
      */
-    public function all(): array
+    public function all(): Collection
     {
-        if ($this->tools !== null) {
-            return $this->tools;
-        }
-
-        $tools = [];
-
-        foreach ($this->definitions as $class) {
-            $tool = new $class;
-            $slug = $tool->slug();
-
-            // Two tools on one slug would silently shadow each other in every
-            // URL and every usage row. Fail at boot instead.
-            if (isset($tools[$slug])) {
-                throw new \LogicException(sprintf(
-                    "Tools %s and %s both claim the slug '%s'.",
-                    $tools[$slug]::class, $class, $slug,
-                ));
-            }
-
-            $tools[$slug] = $tool;
-        }
-
-        return $this->tools = $tools;
+        return Tool::query()
+            ->active()
+            ->whereIn('slug', array_keys($this->definitions()))
+            ->with('models.provider')
+            ->orderBy('sort_order')
+            ->get();
     }
 
-    public function find(string $slug): ?ToolInterface
+    public function find(string $slug): ?Tool
     {
-        return $this->all()[$slug] ?? null;
+        if (! isset($this->definitions()[$slug])) {
+            return null;
+        }
+
+        return Tool::query()->active()->where('slug', $slug)->with('models.provider')->first();
     }
 
     /**
      * @throws ToolNotFoundException
      */
-    public function get(string $slug): ToolInterface
+    public function get(string $slug): Tool
     {
         return $this->find($slug) ?? throw ToolNotFoundException::forSlug($slug);
     }
 
     /**
-     * The tool the homepage opens with — the first one registered.
+     * The tool the homepage opens with — the first in display order.
      *
      * The homepage leads with a working tool rather than a catalog (§14.1).
+     *
+     * @throws ToolNotFoundException
      */
-    public function featured(): ToolInterface
+    public function featured(): Tool
     {
-        $tools = $this->all();
+        return $this->all()->first() ?? throw new ToolNotFoundException('No active tools. Run the database seeders.');
+    }
 
-        return reset($tools) ?: throw new \LogicException('No tools are registered in config/tools.php.');
+    public function definitionFor(Tool $tool): ToolInterface
+    {
+        return $this->definitions()[$tool->slug]
+            ?? throw new \LogicException("Tool '{$tool->slug}' has a database row but no definition in config/tools.php.");
+    }
+
+    /**
+     * @return array<string, ToolInterface>
+     */
+    private function definitions(): array
+    {
+        if ($this->definitions !== null) {
+            return $this->definitions;
+        }
+
+        $definitions = [];
+
+        foreach ($this->definitionClasses as $class) {
+            $definition = new $class;
+            $slug = $definition->slug();
+
+            // Two definitions on one slug would silently shadow each other.
+            // Fail loudly instead.
+            if (isset($definitions[$slug])) {
+                throw new \LogicException(sprintf(
+                    "Tools %s and %s both claim the slug '%s'.",
+                    $definitions[$slug]::class, $class, $slug,
+                ));
+            }
+
+            $definitions[$slug] = $definition;
+        }
+
+        return $this->definitions = $definitions;
     }
 }

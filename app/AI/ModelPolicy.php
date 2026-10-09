@@ -58,6 +58,22 @@ final readonly class ModelPolicy
     }
 
     /**
+     * Exact chains per tier, taken as given — typically built from a tool's
+     * rows in the database.
+     *
+     * Unlike tiered(), neither list is required and the pro list is not
+     * defaulted from the free one: a tool with no free models must offer a
+     * guest nothing, not quietly hand them the pro chain.
+     *
+     * @param  list<string>  $free
+     * @param  list<string>  $pro
+     */
+    public static function perTier(array $free, array $pro, bool $userSelectable = false): self
+    {
+        return new self(['free' => $free, 'pro' => $pro], $userSelectable);
+    }
+
+    /**
      * The ordered model keys this tier may use.
      *
      * A tier with no list of its own falls back to the free chain rather than

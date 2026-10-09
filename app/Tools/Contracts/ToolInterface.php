@@ -4,28 +4,23 @@ declare(strict_types=1);
 
 namespace App\Tools\Contracts;
 
-use App\AI\ModelPolicy;
 use App\Tools\Schema\Field;
 
 /**
- * What a tool *is* — metadata only (§4.1).
+ * The code half of a tool — what cannot live in a database row.
  *
- * Kept apart from the handler so that the catalog, routing, and the UI can
- * describe every tool without building a single handler or its dependency
- * graph. A definition must stay cheap to construct for that reason.
+ * Name, description, status, and which models a tool may use are data in the
+ * `tools` table, editable without a deploy. What stays here is behaviour: the
+ * fields the tool accepts and the handler that runs it. The two halves meet
+ * on `slug()`.
+ *
+ * A definition must stay cheap to construct: the registry builds every one of
+ * them to list tools, without ever running a handler.
  */
 interface ToolInterface
 {
-    /** URL-safe identifier, e.g. 'text-transformer'. Recorded on every usage row. */
+    /** Matches the `slug` of this tool's row in the `tools` table. */
     public function slug(): string;
-
-    public function name(): string;
-
-    /** One sentence for the catalog card and the page header. */
-    public function description(): string;
-
-    /** 'writing' | 'travel' | ... */
-    public function category(): string;
 
     /**
      * @return list<Field> Exactly one of them marked primary().
@@ -46,11 +41,6 @@ interface ToolInterface
      * @return class-string<ToolHandler>
      */
     public function handler(): string;
-
-    public function modelPolicy(): ModelPolicy;
-
-    /** Base weight for quota accounting — see §11.1. */
-    public function costUnits(): int;
 
     /** A custom Livewire component name, or null for the generic workspace. */
     public function component(): ?string;

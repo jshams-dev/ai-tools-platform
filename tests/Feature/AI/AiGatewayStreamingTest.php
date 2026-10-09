@@ -9,11 +9,13 @@ use App\AI\Exceptions\UnsupportedCapabilityException;
 use App\AI\ModelPolicy;
 use App\AI\Requests\TextGenerationRequest;
 use App\Clients\Exceptions\ServiceUnavailableException;
+use App\Models\AiModel;
+use App\Models\AiProvider;
 use App\Models\UsageLog;
 use App\Usage\RunContext;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Concerns\SeedsAiCatalog;
 use Tests\TestCase;
 
 /**
@@ -25,14 +27,14 @@ use Tests\TestCase;
  */
 final class AiGatewayStreamingTest extends TestCase
 {
-    use RefreshDatabase;
+    use SeedsAiCatalog;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         config([
-            'ai.providers.anthropic.key' => 'sk-ant-test-key',
+            'ai.credentials.anthropic' => 'sk-ant-test-key',
             'ai.cache.store' => 'array',
         ]);
     }
@@ -223,13 +225,15 @@ final class AiGatewayStreamingTest extends TestCase
         // is a property of the model, so a policy listing this one is not
         // wrong — it just cannot serve this path, and the distinction has to
         // be made before any tokens are bought.
-        config(['ai.models.batch-only' => [
-            'provider' => 'anthropic',
+        AiModel::create([
+            'ai_provider_id' => AiProvider::where('slug', 'anthropic')->sole()->id,
+            'key' => 'batch-only',
+            'name' => 'Batch only',
             'api_id' => 'claude-haiku-4-5',
             'capabilities' => ['text_generation'],
             'tier' => 'free',
-            'streaming' => false,
-        ]]);
+            'supports_streaming' => false,
+        ]);
 
         $this->expectException(UnsupportedCapabilityException::class);
         $this->expectExceptionMessageMatches('/No streaming-capable model/');

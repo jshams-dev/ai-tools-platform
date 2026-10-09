@@ -10,7 +10,7 @@
             <x-icon name="bars" class="size-5" />
         </button>
 
-        <h2 class="text-[15px] font-semibold tracking-tight">{{ $tool->name() }}</h2>
+        <h2 class="text-[15px] font-semibold tracking-tight">{{ $tool->name }}</h2>
 
         @if ($messages !== [])
             <button
@@ -33,14 +33,14 @@
                     <span class="brand-mark mx-auto mb-5 size-12 rounded-2xl">
                         <x-icon name="sparkle" class="size-6" />
                     </span>
-                    <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">{{ $tool->name() }}</h1>
-                    <p class="mt-2 text-zinc-500">{{ $tool->description() }}</p>
+                    <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">{{ $tool->name }}</h1>
+                    <p class="mt-2 text-zinc-500">{{ $tool->description }}</p>
                 </div>
 
                 @include('livewire.partials.composer')
 
                 <div class="mt-5 flex flex-wrap justify-center gap-2">
-                    @foreach ($tool->starters() as $index => $starter)
+                    @foreach ($starters as $index => $starter)
                         <button
                             type="button"
                             wire:click="useStarter({{ $index }})"

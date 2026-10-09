@@ -16,11 +16,11 @@ use App\Clients\Exceptions\ServiceUnavailableException;
 use App\Models\UsageLog;
 use App\Usage\RunContext;
 use GuzzleHttp\Promise\PromiseInterface;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\ResponseSequence;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Concerns\SeedsAiCatalog;
 use Tests\TestCase;
 
 /**
@@ -31,15 +31,15 @@ use Tests\TestCase;
  */
 final class AiGatewayTest extends TestCase
 {
-    use RefreshDatabase;
+    use SeedsAiCatalog;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         config([
-            'ai.providers.anthropic.key' => 'sk-ant-test-key',
-            'ai.providers.deepl.key' => 'deepl-test-key',
+            'ai.credentials.anthropic' => 'sk-ant-test-key',
+            'ai.credentials.deepl' => 'deepl-test-key',
             'ai.cache.store' => 'array',
         ]);
     }
