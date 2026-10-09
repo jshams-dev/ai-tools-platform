@@ -124,6 +124,13 @@ final class ToolWorkspace extends Component
         $reply = $this->messages[$index];
         $question = $this->messages[$index - 1];
 
+        // A slow model can stream for well over PHP's default 30 seconds. If
+        // PHP kills the request mid-stream, nothing after the kill runs — no
+        // error message, no usage row — and the browser gets a broken
+        // response. The HTTP client's own stream timeout is the real limit;
+        // this just keeps PHP from cutting in first.
+        set_time_limit((int) config('ai.http.stream_timeout', 300) + 30);
+
         $ctx = RunContext::forGuest(
             toolSlug: $this->tool->slug,
             policy: $this->tool->modelPolicy(),
@@ -148,6 +155,47 @@ final class ToolWorkspace extends Component
             // Whatever arrived before the failure is kept: the user has
             // already read it, and it disappearing would be stranger.
             $this->messages[$index] = [...$reply, 'content' => $buffer, 'status' => 'failed', 'error' => $this->explain($e)];
+        }
+    }
+
+    /**
+     * Called by the browser when the respond() request itself failed — the
+     * connection dropped or the server died mid-reply — so no reply state
+     * ever came back. Without this the reply would stay "thinking" forever
+     * and block the message box.
+     */
+    public function abandonReply(): void
+    {
+        $index = array_key_last($this->messages);
+
+        if ($index === null || $this->messages[$index]['status'] !== 'pending') {
+            return;
+        }
+
+        $this->messages[$index] = [
+            ...$this->messages[$index],
+            'status' => 'failed',
+            'error' => __('The connection was interrupted before the reply finished. Please try again.'),
+        ];
+    }
+
+    /**
+     * Put a sent message back in the message box, with the settings it was
+     * sent with, so it can be changed and sent again.
+     */
+    public function editMessage(string $id): void
+    {
+        foreach ($this->messages as $message) {
+            if ($message['id'] === $id && $message['role'] === 'user') {
+                $primary = $this->primaryField()->name;
+                $input = $message['input'] ?? [];
+
+                $this->prompt = (string) ($input[$primary] ?? $message['content']);
+                $this->options = [...$this->defaultOptions(), ...array_intersect_key($input, $this->defaultOptions())];
+                $this->dispatch('focus-composer');
+
+                return;
+            }
         }
     }
 

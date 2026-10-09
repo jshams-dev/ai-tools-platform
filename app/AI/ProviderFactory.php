@@ -136,6 +136,7 @@ final class ProviderFactory
             streamTimeout: (int) ($this->http['stream_timeout'] ?? 300),
             maxAttempts: (int) ($this->http['max_attempts'] ?? 3),
             baseBackoffMs: (int) ($this->http['base_backoff_ms'] ?? 500),
+            streamIdleTimeout: (int) ($this->http['stream_idle_timeout'] ?? 30),
         );
     }
 }

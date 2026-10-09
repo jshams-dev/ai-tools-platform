@@ -1,4 +1,4 @@
-<div class="flex h-full min-h-0 flex-col">
+<div x-data="workspace" class="flex h-full min-h-0 flex-col">
     {{-- Top bar --}}
     <header class="flex h-14 shrink-0 items-center gap-2 px-3 sm:px-5">
         <button
@@ -59,7 +59,46 @@
                 @foreach ($messages as $message)
                     @if ($message['role'] === 'user')
                         <div wire:key="message-{{ $message['id'] }}" class="flex flex-col items-end gap-1.5">
-                            <div dir="auto" class="max-w-[85%] rounded-3xl bg-zinc-100 px-5 py-3 text-[15px] leading-7 break-words whitespace-pre-wrap dark:bg-zinc-800/80">{{ $message['content'] }}</div>
+                            {{-- Tap a sent message for its actions, like a long-press menu --}}
+                            <div
+                                x-data="{ open: false, copied: false }"
+                                x-on:keydown.escape.stop="open = false"
+                                class="relative flex max-w-[85%] flex-col items-end"
+                            >
+                                <button
+                                    type="button"
+                                    x-on:click="open = ! open"
+                                    x-on:contextmenu.prevent="open = true"
+                                    :aria-expanded="open"
+                                    dir="auto"
+                                    class="rounded-3xl bg-zinc-100 px-5 py-3 text-start text-[15px] leading-7 break-words whitespace-pre-wrap transition hover:bg-zinc-200/70 dark:bg-zinc-800/80 dark:hover:bg-zinc-800"
+                                >{{ $message['content'] }}</button>
+
+                                <div
+                                    x-cloak
+                                    x-show="open"
+                                    x-on:click.outside="open = false"
+                                    x-transition.origin.top.right
+                                    class="menu top-full right-0 mt-1.5 w-44"
+                                >
+                                    <button
+                                        type="button"
+                                        x-on:click="$copy(@js($message['content'])); copied = true; setTimeout(() => { copied = false; open = false }, 900)"
+                                        class="menu-item"
+                                    >
+                                        <span x-text="copied ? @js(__('Copied')) : @js(__('Copy'))">{{ __('Copy') }}</span>
+                                        <x-icon name="copy" class="size-4 opacity-60" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        x-on:click="open = false; $wire.editMessage(@js($message['id']))"
+                                        class="menu-item"
+                                    >
+                                        <span>{{ __('Edit') }}</span>
+                                        <x-icon name="pencil-square" class="size-4 opacity-60" />
+                                    </button>
+                                </div>
+                            </div>
 
                             @if (! empty($message['tags']))
                                 <div class="flex flex-wrap justify-end gap-1.5 px-1">
@@ -100,7 +139,7 @@
                                             <button
                                                 type="button"
                                                 x-data="{ copied: false }"
-                                                x-on:click="navigator.clipboard.writeText(@js($message['content'])); copied = true; setTimeout(() => copied = false, 1500)"
+                                                x-on:click="$copy(@js($message['content'])); copied = true; setTimeout(() => copied = false, 1500)"
                                                 class="icon-button size-8"
                                                 title="{{ __('Copy') }}"
                                                 aria-label="{{ __('Copy') }}"

@@ -2,8 +2,61 @@
  * Small Alpine behaviours for the chat workspace. Livewire ships Alpine and
  * fires `alpine:init` before it starts, so registering here is enough.
  */
+/**
+ * Copy text, also on plain-HTTP pages.
+ *
+ * navigator.clipboard only exists on secure origins (HTTPS or localhost), so
+ * on a LAN address like http://192.168.1.10 it is undefined. The fallback
+ * selects a hidden textarea and uses the older copy command, which still
+ * works everywhere.
+ */
+async function copyText(text) {
+    if (window.isSecureContext && navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+
+        return true;
+    }
+
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+
+    try {
+        return document.execCommand('copy');
+    } finally {
+        area.remove();
+    }
+}
+
 document.addEventListener('alpine:init', () => {
     const Alpine = window.Alpine;
+
+    /** `$copy(text)` in any Alpine expression. */
+    Alpine.magic('copy', () => copyText);
+
+    /**
+     * The workspace root. If the request that streams a reply fails outright
+     * — the connection drops, or the server dies mid-reply — Livewire's
+     * default is an error dialog that ends in a page reload, which throws
+     * the whole conversation away. Instead, the reply is marked as failed
+     * and the conversation stays.
+     */
+    Alpine.data('workspace', () => ({
+        init() {
+            this.$wire.$interceptRequest('respond', ({ onError, onFailure }) => {
+                onError(({ preventDefault }) => {
+                    preventDefault();
+                    this.$wire.abandonReply();
+                });
+
+                onFailure(() => this.$wire.abandonReply());
+            });
+        },
+    }));
 
     /** The message box: grows with its content, Enter sends, Shift+Enter breaks a line. */
     Alpine.data('composer', (max = null) => ({

@@ -22,23 +22,82 @@
         class="block max-h-60 w-full resize-none bg-transparent px-3 pt-2 pb-1 text-[15px] leading-7 placeholder:text-zinc-400 focus:outline-none"
     ></textarea>
 
+    {{--
+        One row under the message box, left to right: the model, then the
+        tool's settings in schema order (its most important first), then "⋯"
+        for everything. Two settings fit beside the model on wide screens,
+        one on a phone; the rest live only in the "⋯" panel.
+    --}}
     <div class="flex items-center gap-1.5 px-1 pt-1">
-        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-            @foreach ($settingFields as $field)
+        <div class="flex min-w-0 flex-1 items-center gap-1.5">
+            @if ($defaultModel)
                 <div
-                    wire:key="setting-{{ $field->name }}"
-                    x-data="{ open: false, value: $wire.entangle('options.{{ $field->name }}'), labels: @js($field->getOptions()) }"
+                    x-data="{
+                        open: false,
+                        value: $wire.entangle('model'),
+                        fallback: @js($defaultModel->key),
+                        names: @js($models->pluck('name', 'key')),
+                        get current() { return this.value ?? this.fallback },
+                    }"
                     x-on:keydown.escape.stop="open = false"
-                    class="relative"
+                    class="relative min-w-0"
                 >
                     <button
                         type="button"
                         x-on:click="open = ! open"
                         :aria-expanded="open"
-                        class="pill"
+                        @disabled($models->count() < 2)
+                        class="pill max-w-40 disabled:cursor-default disabled:hover:bg-transparent"
+                        title="{{ __('Model') }}"
+                    >
+                        <x-icon name="bolt" class="size-3.5 opacity-60" />
+                        <span class="truncate" x-text="names[current] ?? current">{{ $defaultModel->name }}</span>
+                        @if ($models->count() > 1)
+                            <x-icon name="chevron-down" class="size-3.5 opacity-60" />
+                        @endif
+                    </button>
+
+                    <div
+                        x-cloak
+                        x-show="open"
+                        x-on:click.outside="open = false"
+                        x-transition.origin.bottom.left
+                        class="menu bottom-full left-0 mb-2 max-h-80 w-72 overflow-y-auto"
+                    >
+                        <p class="px-2.5 pt-1 pb-1.5 text-xs font-medium text-zinc-500">{{ __('Model') }}</p>
+                        @foreach ($models as $option)
+                            <button type="button" x-on:click="value = @js($option->key); open = false" class="menu-item">
+                                <span class="flex min-w-0 flex-col">
+                                    <span class="flex items-center gap-2">
+                                        <span class="truncate">{{ $option->name }}</span>
+                                        @if ($loop->first)
+                                            <span class="rounded-full bg-zinc-100 px-1.5 text-[11px] text-zinc-500 dark:bg-zinc-800">{{ __('Default') }}</span>
+                                        @endif
+                                    </span>
+                                    <span class="text-xs text-zinc-500">{{ $option->provider->name }}</span>
+                                </span>
+                                <x-icon name="check" class="size-4" x-show="current === {{ Js::from($option->key) }}" />
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            @foreach (array_slice($settingFields, 0, 2) as $index => $field)
+                <div
+                    wire:key="setting-{{ $field->name }}"
+                    x-data="{ open: false, value: $wire.entangle('options.{{ $field->name }}'), labels: @js($field->getOptions()) }"
+                    x-on:keydown.escape.stop="open = false"
+                    @class(['relative min-w-0', 'hidden sm:block' => $index > 0])
+                >
+                    <button
+                        type="button"
+                        x-on:click="open = ! open"
+                        :aria-expanded="open"
+                        class="pill max-w-36"
                         title="{{ $field->getLabel() }}"
                     >
-                        <span x-text="labels[value] ?? value">{{ $field->labelFor((string) ($options[$field->name] ?? '')) }}</span>
+                        <span class="truncate" x-text="labels[value] ?? value">{{ $field->labelFor((string) ($options[$field->name] ?? '')) }}</span>
                         <x-icon name="chevron-down" class="size-3.5 opacity-60" />
                     </button>
 
@@ -63,57 +122,19 @@
                     </div>
                 </div>
             @endforeach
-        </div>
 
-        @if ($models->count() > 1)
-            {{-- The tool's models from the database; the first is its default --}}
-            <div
-                x-data="{
-                    open: false,
-                    value: $wire.entangle('model'),
-                    fallback: @js($defaultModel->key),
-                    names: @js($models->pluck('name', 'key')),
-                    get current() { return this.value ?? this.fallback },
-                }"
-                x-on:keydown.escape.stop="open = false"
-                class="relative"
-            >
-                <button type="button" x-on:click="open = ! open" class="pill max-w-44" title="{{ __('Model') }}">
-                    <x-icon name="bolt" class="size-3.5 opacity-60" />
-                    <span class="truncate" x-text="names[current] ?? current">{{ $defaultModel->name }}</span>
-                    <x-icon name="chevron-down" class="size-3.5 opacity-60" />
-                </button>
-
-                <div
-                    x-cloak
-                    x-show="open"
-                    x-on:click.outside="open = false"
-                    x-transition.origin.bottom.right
-                    class="menu right-0 bottom-full mb-2 max-h-80 w-72 overflow-y-auto"
+            @if ($settingFields !== [] || $models->count() > 1)
+                <button
+                    type="button"
+                    x-on:click="$dispatch('open-settings')"
+                    class="pill shrink-0 px-2.5"
+                    title="{{ __('All settings') }}"
+                    aria-label="{{ __('All settings') }}"
                 >
-                    <p class="px-2.5 pt-1 pb-1.5 text-xs font-medium text-zinc-500">{{ __('Model') }}</p>
-                    @foreach ($models as $option)
-                        <button type="button" x-on:click="value = @js($option->key); open = false" class="menu-item">
-                            <span class="flex min-w-0 flex-col">
-                                <span class="flex items-center gap-2">
-                                    <span class="truncate">{{ $option->name }}</span>
-                                    @if ($loop->first)
-                                        <span class="rounded-full bg-zinc-100 px-1.5 text-[11px] text-zinc-500 dark:bg-zinc-800">{{ __('Default') }}</span>
-                                    @endif
-                                </span>
-                                <span class="text-xs text-zinc-500">{{ $option->provider->name }}</span>
-                            </span>
-                            <x-icon name="check" class="size-4" x-show="current === {{ Js::from($option->key) }}" />
-                        </button>
-                    @endforeach
-                </div>
-            </div>
-        @elseif ($defaultModel)
-            <span class="hidden items-center gap-1 px-2 text-xs text-zinc-500 sm:inline-flex" title="{{ __('Model') }}">
-                <x-icon name="bolt" class="size-3.5" />
-                {{ $defaultModel->name }}
-            </span>
-        @endif
+                    <x-icon name="dots" class="size-4" />
+                </button>
+            @endif
+        </div>
 
         <span
             x-cloak
@@ -139,3 +160,5 @@
 @error($primaryField->name)
     <p class="mt-2 px-4 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
 @enderror
+
+@include('livewire.partials.settings-panel')

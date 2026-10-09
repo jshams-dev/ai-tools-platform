@@ -193,6 +193,55 @@ final class ToolWorkspaceTest extends TestCase
     }
 
     #[Test]
+    public function a_reply_whose_request_died_is_marked_failed_instead_of_thinking_forever(): void
+    {
+        // The browser calls this when the streaming request itself failed —
+        // as happened when PHP's time limit killed a slow reply mid-stream.
+        $component = $this->workspace()->set('prompt', 'Hi')->call('send')->call('abandonReply');
+
+        $reply = $component->get('messages')[1];
+        $this->assertSame('failed', $reply['status']);
+        $this->assertStringContainsString('interrupted', $reply['error']);
+
+        // And the message box is usable again.
+        $this->fakeStream(['Hello.']);
+        $component->set('prompt', 'Again')->call('send');
+        $this->assertCount(4, $component->get('messages'));
+    }
+
+    #[Test]
+    public function abandoning_does_nothing_once_a_reply_has_finished(): void
+    {
+        $this->fakeStream(['Done.']);
+
+        $component = $this->workspace()->set('prompt', 'Hi')->call('send');
+        $this->respond($component);
+        $component->call('abandonReply');
+
+        $this->assertSame('done', $component->get('messages')[1]['status']);
+    }
+
+    #[Test]
+    public function editing_a_sent_message_puts_it_back_with_its_settings(): void
+    {
+        $component = $this->workspace()
+            ->set('prompt', 'Make it shorter.')
+            ->set('options.mode', 'summarize')
+            ->set('options.tone', 'friendly')
+            ->call('send')
+            ->call('abandonReply')
+            // Different settings now, so the assertions below prove the
+            // values came back from the message, not from leftover state.
+            ->set('options.mode', 'expand')
+            ->set('options.tone', 'neutral');
+
+        $component->call('editMessage', $component->get('messages')[0]['id'])
+            ->assertSet('prompt', 'Make it shorter.')
+            ->assertSet('options.mode', 'summarize')
+            ->assertSet('options.tone', 'friendly');
+    }
+
+    #[Test]
     public function new_chat_clears_the_conversation(): void
     {
         $this->workspace()

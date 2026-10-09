@@ -117,6 +117,9 @@ return [
         // own ceiling rather than forcing the sync timeout up for everyone.
         'stream_timeout' => (int) env('AI_STREAM_TIMEOUT', 300),
 
+        // ...but a stream that goes silent for this long is treated as dead.
+        'stream_idle_timeout' => (int) env('AI_STREAM_IDLE_TIMEOUT', 30),
+
         // Total attempts: 3 means one try plus two retries. Applies to
         // transport failures only (connection reset, 429, 5xx).
         'max_attempts' => (int) env('AI_HTTP_MAX_ATTEMPTS', 3),
