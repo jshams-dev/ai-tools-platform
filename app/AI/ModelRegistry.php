@@ -8,7 +8,7 @@ use App\AI\Exceptions\UnknownModelException;
 use App\AI\Exceptions\UnsupportedCapabilityException;
 
 /**
- * Reads config/ai.php and hands back typed models.
+ * Turns model rows (ai_models, via AiCatalog) into typed models.
  *
  * Everything above this class deals in ResolvedModel objects, never in config
  * arrays. That is what makes the eventual move to an `ai_models` table a
@@ -55,7 +55,7 @@ final class ModelRegistry
         $key = $this->defaults[$capability->value]
             ?? throw new UnknownModelException(
                 "No default model configured for '{$capability->value}'. ".
-                "Add one under 'defaults' in config/ai.php."
+                'Pass one in the registry\'s $defaults.'
             );
 
         $model = $this->get($key);
@@ -100,7 +100,7 @@ final class ModelRegistry
         $capabilities = array_map(
             fn (string $value): Capability => Capability::tryFrom($value)
                 ?? throw new UnknownModelException(
-                    "Model '{$key}' declares an unknown capability '{$value}' in config/ai.php."
+                    "Model '{$key}' declares an unknown capability '{$value}' in the ai_models table."
                 ),
             $capabilityValues,
         );
@@ -111,7 +111,7 @@ final class ModelRegistry
         return new ResolvedModel(
             key: $key,
             provider: (string) ($config['provider'] ?? throw new UnknownModelException(
-                "Model '{$key}' has no provider in config/ai.php."
+                "Model '{$key}' has no provider in the ai_models table."
             )),
             apiId: (string) ($config['api_id'] ?? $key),
             capabilities: array_values($capabilities),
@@ -123,6 +123,7 @@ final class ModelRegistry
             maxOutputTokens: isset($config['max_output_tokens'])
                 ? (int) $config['max_output_tokens']
                 : null,
+            requestOptions: is_array($config['request_options'] ?? null) ? $config['request_options'] : [],
         );
     }
 }

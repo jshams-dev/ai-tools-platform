@@ -9,9 +9,9 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Every AI call, whether it succeeded, was served from cache, or failed.
  *
- * This is the audit and cost table. It has no foreign key to a tools table
- * because tools live in code — the registry is their source of truth — so
- * `tool_slug` is a plain indexed string.
+ * This is the audit and cost table. `tool_slug` and `model` are plain strings
+ * rather than foreign keys on purpose: the audit trail must survive a tool or
+ * model row being deleted, and must keep saying what was actually called.
  */
 return new class extends Migration
 {

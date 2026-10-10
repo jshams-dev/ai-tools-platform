@@ -22,7 +22,7 @@ final class UnsupportedCapabilityException extends AiException
     {
         return new self(
             "Model '{$model->key}' does not declare the '{$capability->value}' capability. ".
-            'Add it to the model\'s capabilities in config/ai.php, or resolve a different model.'
+            'Add it to the model\'s capabilities in the ai_models table, or resolve a different model.'
         );
     }
 

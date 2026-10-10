@@ -8,10 +8,12 @@ use App\AI\Exceptions\AiException;
 use App\AI\Requests\AiRequest;
 use App\AI\Requests\StreamableRequest;
 use App\AI\Results\AiResult;
+use App\AI\Results\ReasoningDelta;
 use App\Clients\Exceptions\HttpClientException;
 use App\Clients\Exceptions\RateLimitException;
 use App\Models\UsageLog;
 use App\Repositories\UsageLogRepository;
+use App\Usage\CostCircuitBreaker;
 use App\Usage\RunContext;
 use App\Usage\UsageRecord;
 
@@ -29,8 +31,8 @@ use App\Usage\UsageRecord;
  * That is what makes adding video generation a new request class plus a new
  * interface, touching nothing in this file.
  *
- * It is also the reason the spend cap, when it arrives, is one `if`: there is
- * exactly one place to put it.
+ * It is also the reason the daily spend cap is one `if`: there is exactly one
+ * place to put it.
  */
 final class AiGateway
 {
@@ -39,6 +41,7 @@ final class AiGateway
         private readonly ProviderFactory $factory,
         private readonly AiResponseCache $cache,
         private readonly UsageLogRepository $logs,
+        private readonly CostCircuitBreaker $breaker,
     ) {}
 
     /**
@@ -72,6 +75,10 @@ final class AiGateway
 
                 return $hit;
             }
+
+            // After the cache, not before: a hit costs nothing, so refusing
+            // it once the budget is gone would only make the site worse.
+            $this->breaker->assertWithinDailyBudget();
 
             $startedAt = hrtime(true);
 
@@ -114,13 +121,14 @@ final class AiGateway
     }
 
     /**
-     * Stream a request, yielding fragments as they arrive.
+     * Stream a request, yielding fragments as they arrive: answer text as
+     * strings, and the model's thinking as ReasoningDelta for live status.
      *
      * The generator's return value is the assembled result, or **null** when
      * the caller disconnected mid-stream — there is no complete answer in that
      * case, and inventing one would cache a truncation.
      *
-     * @return \Generator<int, string, mixed, AiResult|null>
+     * @return \Generator<int, string|ReasoningDelta, mixed, AiResult|null>
      *
      * @throws AiException|HttpClientException
      */
@@ -145,6 +153,8 @@ final class AiGateway
                 return $hit;
             }
 
+            $this->breaker->assertWithinDailyBudget();
+
             $startedAt = hrtime(true);
             $yielded = false;
             $status = UsageLog::STATUS_OK;
@@ -164,7 +174,12 @@ final class AiGateway
                         break;
                     }
 
-                    $yielded = true;
+                    // Thinking is status, not output. Only answer text makes
+                    // switching models visible to the caller, so only that
+                    // closes the door on falling back.
+                    if (is_string($fragment)) {
+                        $yielded = true;
+                    }
 
                     yield $fragment;
                 }

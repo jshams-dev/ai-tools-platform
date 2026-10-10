@@ -1002,8 +1002,8 @@ Ordered so that something demonstrable exists early. Running out of momentum bef
 |---|---|---|
 | 1 ✅ | `BaseHttpClient` + `ServerSentEvents` + exception layer + `Capability` + capability interfaces + `AiRequest` + `ModelRegistry` + two real providers (`Anthropic` sync **and** stream, `DeepL` translation-only) + `ProviderFactory` + `config/ai.php` | AI core + transport |
 | 2 ✅ | `AiGateway` (sync + stream) + `AiResponseCache` + `ModelPolicy` + `ModelResolver` + `RunContext` + `usage_logs` + `UsageLogRepository` | Mediation layer |
-| 3 | `ToolRegistry` + `Field` schema + generic form renderer + first tool (Text Transformer) + Livewire page with `wire:stream` + **`throttle` on tool routes + daily spend cap** | 🎯 **First working, demoable thing** |
-| 4 | Auth (Breeze) + `plans` + `usage_counters` + reserve/commit + guest IP limits + per-user quotas | Business model |
+| 3 ✅ | `ToolRegistry` + `Field` schema + **chat-style workspace** (not a form) + first tool (Text Transformer) + `wire:stream` + per-caller throttle + daily spend cap + providers/models/tools in the database + `OpenAiCompatibleProvider` with free models | 🎯 **First working, demoable thing** |
+| 4 | **Login required — no guest access** + `plans` (a free plan for every new account) + **saved chat history per user** + `usage_counters` + reserve/commit + per-user quotas | Business model |
 | 5 | Catalog UI (grid, categories, tool pages) + content files + SEO (sitemap, JSON-LD, meta) | A real site |
 | 6 | REST API v1 behind `X-Api-Key`, including SSE streaming | Second entry point |
 | 7 | Hotel Description + Room Normalizer (with `RuleBasedClassifier` fallback chain) | 3 tools |
@@ -1017,6 +1017,29 @@ Ordered so that something demonstrable exists early. Running out of momentum bef
 
 The REST API stays in v1 but lands after the tools exist, because an API designed before its payloads are known ships as `v2` before launch.
 
+### 18.1 Phase 4 requirements (decided 2026-10-10)
+
+These supersede the guest tier in §11.1 and the deferred `tool_runs` table in §13.2.
+
+**No guests.** Like every mainstream AI product, using a tool requires an account. Signing up puts the user on the free plan; there is no anonymous access to any tool. Consequences:
+
+- `RunContext::forGuest()` and the `guest` row in `plans` go away; every run has a `userId`.
+- Quotas are per user only. The per-IP throttle stays as abuse protection on the login and signup routes, not as a billing mechanism.
+- Tool pages may stay public for SEO (§14.3); the message box asks the visitor to sign in.
+
+**Saved chat history.** Every conversation is stored per user, so a reply never lives only in the browser. Today a dropped connection or a page reload loses the conversation; with history it is one click away.
+
+- `conversations` — `user_id`, `tool_id`, `title` (from the first message), timestamps. Listed in the sidebar, newest first, like any chat product.
+- `conversation_messages` — `conversation_id`, `role`, `content`, `input` (JSON: the validated field values a user turn was sent with), `status` (`done` / `failed`), the model that answered, and the `usage_logs` row it produced.
+- A reply is written when the stream finishes *or fails*, never only held in component state.
+- Editing a sent message (already in the UI) becomes "edit and resend" within the stored conversation.
+
+**Workspace behaviour carried into phase 4** (built in phase 3):
+
+- One settings row under the message box: model first, then the tool's fields in schema order, at most two visible, then "⋯" for a panel with every setting.
+- Tapping a sent message offers Copy and Edit. Copy falls back to `execCommand` on non-HTTPS origins.
+- A reply whose request dies is marked failed in place instead of reloading the page.
+
 ---
 
 ## 19. Resume Mapping
@@ -1027,9 +1050,8 @@ The REST API stays in v1 but lands after the tools exist, because an API designe
 - **Operational Awareness** — quota reservation with refund-on-failure, spend circuit breakers, abort detection on streams, Octane-safe design
 - **SEO** — server-rendered, registry-driven sitemap and structured data
 
-**Next step:** Phase 3 — `ToolRegistry`, the `Field` schema, a generic form renderer,
-the first tool, and a Livewire page with `wire:stream`. Plus the two spend guards that
-moved into this phase, because it is the first one to put a public tool on platform keys.
+**Next step:** Phase 4 — login required, plans, and saved chat history per user (§18.1).
 
-Phases 1 and 2 are complete: transport, the capability model, two providers, the
-gateway with caching, model fallback and usage logging — 116 tests covering them.
+Phases 1–3 are complete: transport, the capability model, the gateway with caching,
+fallback and usage logging, the tool layer, a chat-style workspace, providers, models
+and tools in the database, and seven free models behind one OpenAI-compatible driver.
