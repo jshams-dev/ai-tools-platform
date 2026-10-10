@@ -4,7 +4,9 @@ A Laravel platform hosting a set of AI-powered tools — each one solving a real
 problem rather than wrapping a chat box. Built around a capability-based AI abstraction
 that supports multiple providers (OpenAI, Anthropic, Google, DeepL) behind one clean seam.
 
-> **Status:** Phases 1-2 built and tested (116 tests). Phase 3 delivers the first working tool.
+> **Status:** Phases 1–3 built and tested (141 tests): a chat-style workspace with the first
+> tool, seven free models, and providers/models/tools managed in the database. Next: Phase 4 —
+> login, plans, and saved chat history. See `CHANGELOG.md` and `SESSION_LOG.md`.
 
 ## Why this exists
 
