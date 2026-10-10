@@ -7,6 +7,7 @@ namespace App\Livewire;
 use App\AI\Exceptions\ContentRefusedException;
 use App\AI\Exceptions\SpendCapExceededException;
 use App\AI\Exceptions\UnsupportedCapabilityException;
+use App\AI\Results\ReasoningDelta;
 use App\Clients\Exceptions\HttpClientException;
 use App\Models\Tool;
 use App\Tools\Contracts\ToolInterface;
@@ -139,9 +140,24 @@ final class ToolWorkspace extends Component
         );
 
         $buffer = '';
+        $thought = '';
+        $statusSentAt = 0.0;
 
         try {
             foreach ($runner->stream($this->definition, $question['input'] ?? [], $ctx) as $fragment) {
+                if ($fragment instanceof ReasoningDelta) {
+                    $thought .= $fragment->text;
+
+                    // Thinking arrives a few characters at a time; a status
+                    // line only needs refreshing a few times a second.
+                    if (microtime(true) - $statusSentAt >= 0.25) {
+                        $this->stream(e(self::thoughtPreview($thought)), replace: true, name: 'status-'.$reply['id']);
+                        $statusSentAt = microtime(true);
+                    }
+
+                    continue;
+                }
+
                 $buffer .= $fragment;
 
                 // wire:stream inserts what it receives as HTML. Model output
@@ -156,6 +172,31 @@ final class ToolWorkspace extends Component
             // already read it, and it disappearing would be stranger.
             $this->messages[$index] = [...$reply, 'content' => $buffer, 'status' => 'failed', 'error' => $this->explain($e)];
         }
+    }
+
+    /**
+     * One line saying what the model is doing right now.
+     *
+     * Gemini writes its thoughts as short titled steps ("**Checking divisors**
+     * …"), so the latest title is the best summary. Other models think in
+     * plain prose, so the tail of it is shown instead.
+     */
+    private static function thoughtPreview(string $thought): string
+    {
+        if (preg_match_all('/\*\*(.+?)\*\*/u', $thought, $titles) > 0) {
+            return trim((string) end($titles[1]));
+        }
+
+        $flat = trim((string) preg_replace('/\s+/u', ' ', $thought));
+
+        if (mb_strlen($flat) <= 110) {
+            return $flat;
+        }
+
+        $tail = mb_substr($flat, -110);
+
+        // Start at a word, not mid-word.
+        return '…'.ltrim((string) preg_replace('/^\S*\s/u', '', $tail));
     }
 
     /**

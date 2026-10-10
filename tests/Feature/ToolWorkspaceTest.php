@@ -165,6 +165,28 @@ final class ToolWorkspaceTest extends TestCase
     }
 
     #[Test]
+    public function the_models_thinking_is_shown_as_status_but_never_kept_in_the_reply(): void
+    {
+        Http::fake(['api.groq.com/*' => Http::response(
+            'data: '.json_encode(['choices' => [['delta' => ['reasoning' => 'Checking whether 391 is prime.']]]])."\n\n".
+            'data: '.json_encode(['choices' => [['delta' => ['content' => 'No.']]]])."\n\n".
+            "data: [DONE]\n\n"
+        )]);
+
+        $component = $this->workspace()->set('prompt', 'Is 391 prime?')->call('send');
+        $reply = $component->get('messages')[1];
+
+        $streamed = $this->respond($component);
+
+        // Sent to the status line, replacing "Thinking…"...
+        $this->assertStringContainsString('"name":"status-'.$reply['id'].'"', $streamed);
+        $this->assertStringContainsString('Checking whether 391 is prime.', $streamed);
+
+        // ...but the reply itself is the answer alone.
+        $this->assertSame('No.', $component->get('messages')[1]['content']);
+    }
+
+    #[Test]
     public function a_throttled_run_becomes_a_friendly_failed_reply(): void
     {
         config(['tools.throttle.max_runs' => 1]);

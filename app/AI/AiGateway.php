@@ -8,6 +8,7 @@ use App\AI\Exceptions\AiException;
 use App\AI\Requests\AiRequest;
 use App\AI\Requests\StreamableRequest;
 use App\AI\Results\AiResult;
+use App\AI\Results\ReasoningDelta;
 use App\Clients\Exceptions\HttpClientException;
 use App\Clients\Exceptions\RateLimitException;
 use App\Models\UsageLog;
@@ -120,13 +121,14 @@ final class AiGateway
     }
 
     /**
-     * Stream a request, yielding fragments as they arrive.
+     * Stream a request, yielding fragments as they arrive: answer text as
+     * strings, and the model's thinking as ReasoningDelta for live status.
      *
      * The generator's return value is the assembled result, or **null** when
      * the caller disconnected mid-stream — there is no complete answer in that
      * case, and inventing one would cache a truncation.
      *
-     * @return \Generator<int, string, mixed, AiResult|null>
+     * @return \Generator<int, string|ReasoningDelta, mixed, AiResult|null>
      *
      * @throws AiException|HttpClientException
      */
@@ -172,7 +174,12 @@ final class AiGateway
                         break;
                     }
 
-                    $yielded = true;
+                    // Thinking is status, not output. Only answer text makes
+                    // switching models visible to the caller, so only that
+                    // closes the door on falling back.
+                    if (is_string($fragment)) {
+                        $yielded = true;
+                    }
 
                     yield $fragment;
                 }

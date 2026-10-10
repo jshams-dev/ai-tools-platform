@@ -22,8 +22,10 @@
         x-transition:enter-start="translate-y-6 opacity-0 sm:translate-y-2"
         x-transition:leave="transition duration-150 ease-in"
         x-transition:leave-end="translate-y-6 opacity-0 sm:translate-y-2"
-        class="relative flex max-h-[85dvh] w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:max-w-lg sm:rounded-3xl dark:bg-zinc-900"
+        class="glass relative flex max-h-[85dvh] w-full flex-col rounded-t-3xl border-b-0 bg-white/85 sm:max-w-lg sm:rounded-3xl sm:border-b dark:bg-zinc-900/80"
     >
+        {{-- Grab handle: says "this is a sheet you can dismiss" on phones --}}
+        <div class="mx-auto mt-2.5 h-1 w-10 rounded-full bg-zinc-900/15 sm:hidden dark:bg-white/20"></div>
         <div class="flex items-center justify-between px-5 pt-4 pb-2">
             <h3 class="text-base font-semibold">{{ __('Settings') }}</h3>
             <button type="button" x-on:click="open = false" class="icon-button" aria-label="{{ __('Close') }}">
@@ -33,26 +35,68 @@
 
         <div class="flex flex-col gap-6 overflow-y-auto px-5 pt-2 pb-6">
             @if ($models->count() > 1)
+                {{--
+                    Searchable, because the model list is expected to grow to
+                    dozens. Filtering is client-side: the list is already on
+                    the page, so a keystroke needs no round trip.
+                --}}
                 <section
-                    x-data="{ value: $wire.entangle('model'), fallback: @js($defaultModel->key), get current() { return this.value ?? this.fallback } }"
+                    x-data="modelPicker({
+                        value: $wire.entangle('model'),
+                        models: @js($models->map(fn ($m, $i) => [
+                            'key' => $m->key,
+                            'name' => $m->name,
+                            'provider' => $m->provider->name,
+                            'isDefault' => $i === 0,
+                        ])->values()),
+                        fallback: @js($defaultModel->key),
+                    })"
                 >
                     <p class="mb-2 text-sm font-medium text-zinc-500">{{ __('Model') }}</p>
-                    <div class="grid gap-2 sm:grid-cols-2">
-                        @foreach ($models as $option)
+
+                    <label class="relative block">
+                        <span class="sr-only">{{ __('Search models') }}</span>
+                        <x-icon name="search" class="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-zinc-400" />
+                        <input
+                            type="search"
+                            x-model="query"
+                            placeholder="{{ __('Search models…') }}"
+                            class="h-10 w-full rounded-xl border border-zinc-900/8 bg-zinc-900/3 ps-10 pe-3 text-sm outline-none transition placeholder:text-zinc-400 focus:border-accent-1/40 focus:ring-4 focus:ring-accent-1/10 dark:border-white/8 dark:bg-white/5"
+                        >
+                    </label>
+
+                    <div class="mt-2.5 flex flex-wrap gap-1.5">
+                        <template x-for="name in ['', ...providers]" :key="name">
                             <button
                                 type="button"
-                                x-on:click="value = @js($option->key)"
-                                :class="current === {{ Js::from($option->key) }}
-                                    ? 'border-zinc-900 bg-zinc-50 dark:border-zinc-100 dark:bg-zinc-800'
-                                    : 'border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700'"
+                                x-on:click="provider = name"
+                                x-text="name === '' ? @js(__('All')) : name"
+                                :class="provider === name
+                                    ? 'border-accent-1/40 bg-accent-1/10 text-accent-1'
+                                    : 'border-zinc-900/8 text-zinc-600 hover:border-zinc-900/15 dark:border-white/8 dark:text-zinc-400'"
+                                class="rounded-full border px-3 py-1 text-xs font-medium transition"
+                            ></button>
+                        </template>
+                    </div>
+
+                    <div class="mt-3 grid max-h-64 gap-2 overflow-y-auto pe-1 sm:grid-cols-2">
+                        <template x-for="model in filtered" :key="model.key">
+                            <button
+                                type="button"
+                                x-on:click="value = model.key"
+                                :class="current === model.key
+                                    ? 'border-accent-1/50 bg-accent-1/8 ring-4 ring-accent-1/8'
+                                    : 'border-zinc-900/8 hover:border-zinc-900/15 dark:border-white/8 dark:hover:border-white/15'"
                                 class="flex flex-col items-start rounded-2xl border px-3.5 py-2.5 text-start transition"
                             >
-                                <span class="text-sm font-medium">{{ $option->name }}</span>
-                                <span class="text-xs text-zinc-500">
-                                    {{ $option->provider->name }}@if ($loop->first) · {{ __('Default') }}@endif
-                                </span>
+                                <span class="text-sm font-medium" x-text="model.name"></span>
+                                <span class="text-xs text-zinc-500" x-text="model.provider + (model.isDefault ? ' · ' + @js(__('Default')) : '')"></span>
                             </button>
-                        @endforeach
+                        </template>
+
+                        <p x-show="filtered.length === 0" class="py-6 text-center text-sm text-zinc-500 sm:col-span-2">
+                            {{ __('No models match.') }}
+                        </p>
                     </div>
                 </section>
             @endif
@@ -69,9 +113,9 @@
                                 type="button"
                                 x-on:click="value = @js($value)"
                                 :class="value === {{ Js::from($value) }}
-                                    ? 'border-zinc-900 bg-zinc-900 text-white dark:border-white dark:bg-white dark:text-zinc-900'
-                                    : 'border-zinc-200 text-zinc-700 hover:border-zinc-300 dark:border-zinc-700 dark:text-zinc-300'"
-                                class="rounded-full border px-3.5 py-1.5 text-sm transition"
+                                    ? 'border-accent-1/50 bg-accent-1/10 text-accent-1'
+                                    : 'border-zinc-900/8 text-zinc-700 hover:border-zinc-900/15 dark:border-white/8 dark:text-zinc-300 dark:hover:border-white/15'"
+                                class="rounded-full border px-3.5 py-1.5 text-sm transition active:scale-95"
                             >
                                 {{ $label }}
                             </button>
@@ -81,11 +125,11 @@
             @endforeach
         </div>
 
-        <div class="border-t border-zinc-100 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-zinc-800">
+        <div class="border-t border-zinc-900/5 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-white/5">
             <button
                 type="button"
                 x-on:click="open = false"
-                class="w-full rounded-full bg-zinc-900 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+                class="w-full rounded-full bg-linear-to-r from-accent-1 via-accent-2 to-accent-3 py-2.5 text-sm font-medium text-white shadow-md shadow-accent-2/25 transition hover:shadow-lg active:scale-[0.98]"
             >
                 {{ __('Done') }}
             </button>

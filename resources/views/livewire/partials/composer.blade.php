@@ -6,7 +6,7 @@
     wire:submit="send"
     x-data="composer({{ Js::from($primaryField->maxLength()) }})"
     x-on:focus-composer.window="focus()"
-    class="rounded-[26px] border border-zinc-200 bg-white p-2 shadow-[0_2px_12px_-4px_rgb(0_0_0/0.08)] transition focus-within:border-zinc-300 focus-within:shadow-[0_4px_24px_-6px_rgb(0_0_0/0.12)] dark:border-zinc-800 dark:bg-zinc-900 dark:focus-within:border-zinc-700"
+    class="composer"
 >
     <label for="composer-input" class="sr-only">{{ $primaryField->getLabel() }}</label>
     <textarea
@@ -19,7 +19,7 @@
         dir="auto"
         @if ($primaryField->maxLength()) maxlength="{{ $primaryField->maxLength() }}" @endif
         placeholder="{{ $primaryField->getPlaceholder() ?? __('Message') }}"
-        class="block max-h-60 w-full resize-none bg-transparent px-3 pt-2 pb-1 text-[15px] leading-7 placeholder:text-zinc-400 focus:outline-none"
+        class="block max-h-60 w-full resize-none bg-transparent px-3 pt-2 pb-1 text-[15px] leading-7 placeholder:text-zinc-400 focus:outline-none dark:placeholder:text-zinc-500"
     ></textarea>
 
     {{--
@@ -27,6 +27,10 @@
         tool's settings in schema order (its most important first), then "⋯"
         for everything. Two settings fit beside the model on wide screens,
         one on a phone; the rest live only in the "⋯" panel.
+
+        Every wrapper here may shrink (min-w-0) and caps its share of the row,
+        and every label truncates — so long names end in "…" instead of
+        spilling over the next pill.
     --}}
     <div class="flex items-center gap-1.5 px-1 pt-1">
         <div class="flex min-w-0 flex-1 items-center gap-1.5">
@@ -40,18 +44,18 @@
                         get current() { return this.value ?? this.fallback },
                     }"
                     x-on:keydown.escape.stop="open = false"
-                    class="relative min-w-0"
+                    class="relative flex min-w-0 max-w-[48%] sm:max-w-52"
                 >
                     <button
                         type="button"
                         x-on:click="open = ! open"
                         :aria-expanded="open"
                         @disabled($models->count() < 2)
-                        class="pill max-w-40 disabled:cursor-default disabled:hover:bg-transparent"
+                        class="pill disabled:cursor-default"
                         title="{{ __('Model') }}"
                     >
-                        <x-icon name="bolt" class="size-3.5 opacity-60" />
-                        <span class="truncate" x-text="names[current] ?? current">{{ $defaultModel->name }}</span>
+                        <x-icon name="bolt" class="size-3.5 text-accent-1" />
+                        <span class="min-w-0 truncate" x-text="names[current] ?? current">{{ $defaultModel->name }}</span>
                         @if ($models->count() > 1)
                             <x-icon name="chevron-down" class="size-3.5 opacity-60" />
                         @endif
@@ -71,14 +75,22 @@
                                     <span class="flex items-center gap-2">
                                         <span class="truncate">{{ $option->name }}</span>
                                         @if ($loop->first)
-                                            <span class="rounded-full bg-zinc-100 px-1.5 text-[11px] text-zinc-500 dark:bg-zinc-800">{{ __('Default') }}</span>
+                                            <span class="rounded-full bg-accent-1/10 px-1.5 text-[11px] text-accent-1">{{ __('Default') }}</span>
                                         @endif
                                     </span>
                                     <span class="text-xs text-zinc-500">{{ $option->provider->name }}</span>
                                 </span>
-                                <x-icon name="check" class="size-4" x-show="current === {{ Js::from($option->key) }}" />
+                                <x-icon name="check" class="size-4 shrink-0 text-accent-1" x-show="current === {{ Js::from($option->key) }}" />
                             </button>
                         @endforeach
+                        <button
+                            type="button"
+                            x-on:click="open = false; $dispatch('open-settings')"
+                            class="menu-item mt-1 border-t border-zinc-900/5 pt-2.5 text-zinc-500 dark:border-white/5"
+                        >
+                            <span>{{ __('Search all models…') }}</span>
+                            <x-icon name="search" class="size-4" />
+                        </button>
                     </div>
                 </div>
             @endif
@@ -88,16 +100,16 @@
                     wire:key="setting-{{ $field->name }}"
                     x-data="{ open: false, value: $wire.entangle('options.{{ $field->name }}'), labels: @js($field->getOptions()) }"
                     x-on:keydown.escape.stop="open = false"
-                    @class(['relative min-w-0', 'hidden sm:block' => $index > 0])
+                    @class(['relative min-w-0 max-w-[38%] sm:max-w-40', 'flex' => $index === 0, 'hidden sm:flex' => $index > 0])
                 >
                     <button
                         type="button"
                         x-on:click="open = ! open"
                         :aria-expanded="open"
-                        class="pill max-w-36"
+                        class="pill"
                         title="{{ $field->getLabel() }}"
                     >
-                        <span class="truncate" x-text="labels[value] ?? value">{{ $field->labelFor((string) ($options[$field->name] ?? '')) }}</span>
+                        <span class="min-w-0 truncate" x-text="labels[value] ?? value">{{ $field->labelFor((string) ($options[$field->name] ?? '')) }}</span>
                         <x-icon name="chevron-down" class="size-3.5 opacity-60" />
                     </button>
 
@@ -116,7 +128,7 @@
                                 class="menu-item"
                             >
                                 <span>{{ $label }}</span>
-                                <x-icon name="check" class="size-4" x-show="value === {{ Js::from($value) }}" />
+                                <x-icon name="check" class="size-4 text-accent-1" x-show="value === {{ Js::from($value) }}" />
                             </button>
                         @endforeach
                     </div>
@@ -139,7 +151,7 @@
         <span
             x-cloak
             x-show="nearLimit"
-            class="text-xs tabular-nums text-zinc-500"
+            class="shrink-0 text-xs tabular-nums text-zinc-500"
             x-text="`${count} / ${max}`"
         ></span>
 
@@ -148,7 +160,7 @@
             wire:loading.attr="disabled"
             wire:target="send, respond"
             :disabled="isEmpty"
-            class="grid size-9 shrink-0 place-items-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-600"
+            class="send-button"
             aria-label="{{ __('Send') }}"
         >
             <x-icon name="arrow-up" class="size-4.5" wire:loading.remove wire:target="send, respond" />
@@ -158,7 +170,7 @@
 </form>
 
 @error($primaryField->name)
-    <p class="mt-2 px-4 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+    <p class="mt-2 animate-rise px-4 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
 @enderror
 
 @include('livewire.partials.settings-panel')

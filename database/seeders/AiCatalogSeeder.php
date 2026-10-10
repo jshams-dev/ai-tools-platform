@@ -78,7 +78,13 @@ final class AiCatalogSeeder extends Seeder
 
             // Free — Google. Best quality of the free tiers.
             ['provider' => 'gemini', 'key' => 'gemini-3.5-flash-lite', 'name' => 'Gemini 3.5 Flash-Lite', 'api_id' => 'gemini-3.5-flash-lite', 'capabilities' => $text, 'tier' => 'free', 'max_output_tokens' => 8192],
-            ['provider' => 'gemini', 'key' => 'gemini-3.5-flash', 'name' => 'Gemini 3.5 Flash', 'api_id' => 'gemini-3.5-flash', 'capabilities' => $text, 'tier' => 'free', 'max_output_tokens' => 8192],
+            [
+                'provider' => 'gemini', 'key' => 'gemini-3.5-flash', 'name' => 'Gemini 3.5 Flash', 'api_id' => 'gemini-3.5-flash',
+                'capabilities' => $text, 'tier' => 'free', 'max_output_tokens' => 8192,
+                // It thinks either way; this only asks it to share short
+                // summaries of that thinking, shown as live status in the chat.
+                'settings' => ['request_options' => ['extra_body' => ['google' => ['thinking_config' => ['include_thoughts' => true]]]]],
+            ],
 
             // Free — OpenRouter's shared pool: 20/minute, 50/day, and often
             // rate-limited upstream. Useful as the end of a fallback chain.

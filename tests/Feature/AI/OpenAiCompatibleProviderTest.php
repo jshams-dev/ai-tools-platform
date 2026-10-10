@@ -9,6 +9,7 @@ use App\AI\Exceptions\InvalidResponseException;
 use App\AI\ModelRegistry;
 use App\AI\ProviderFactory;
 use App\AI\Requests\TextGenerationRequest;
+use App\AI\Results\ReasoningDelta;
 use App\AI\Results\TextResult;
 use App\Clients\Exceptions\RateLimitException;
 use Illuminate\Http\Client\Request;
@@ -80,7 +81,7 @@ final class OpenAiCompatibleProviderTest extends TestCase
     }
 
     #[Test]
-    public function streaming_yields_only_the_answer_never_the_reasoning(): void
+    public function reasoning_is_yielded_as_its_own_type_and_never_joins_the_answer(): void
     {
         Http::fake(['api.groq.com/*' => Http::response($this->sse([
             ['choices' => [['delta' => ['reasoning' => 'The user wants a greeting.']]]],
@@ -92,7 +93,10 @@ final class OpenAiCompatibleProviderTest extends TestCase
 
         $stream = $this->stream('groq-gpt-oss-120b');
 
-        $this->assertSame(['Hel', 'lo.'], iterator_to_array($stream, preserve_keys: false));
+        $this->assertEquals(
+            [new ReasoningDelta('The user wants a greeting.'), 'Hel', 'lo.'],
+            iterator_to_array($stream, preserve_keys: false),
+        );
 
         $result = $stream->getReturn();
         $this->assertSame('Hello.', $result->text);
@@ -102,6 +106,44 @@ final class OpenAiCompatibleProviderTest extends TestCase
         $this->assertSame(7, $result->usage()->outputTokens);
 
         Http::assertSent(fn (Request $request): bool => $request['stream_options'] === ['include_usage' => true]);
+    }
+
+    #[Test]
+    public function geminis_leading_thought_blocks_are_split_from_the_answer_even_across_chunks(): void
+    {
+        // Gemini puts its thoughts inside `content`. The tags here are cut
+        // mid-word across chunks, as network reads do.
+        Http::fake(['api.groq.com/*' => Http::response($this->sse([
+            ['choices' => [['delta' => ['content' => '<tho']]]],
+            ['choices' => [['delta' => ['content' => 'ught>**Checking** the maths</tho']]]],
+            ['choices' => [['delta' => ['content' => 'ught>No, 391 = 17 × 23.']]]],
+            ['choices' => [['delta' => [], 'finish_reason' => 'stop']]],
+        ]))]);
+
+        $stream = $this->stream('groq-qwen3.8-27b');
+        $fragments = iterator_to_array($stream, preserve_keys: false);
+
+        $thinking = implode('', array_map(fn ($f) => $f->text, array_filter($fragments, fn ($f) => $f instanceof ReasoningDelta)));
+        $answer = implode('', array_filter($fragments, 'is_string'));
+
+        $this->assertSame('**Checking** the maths', $thinking);
+        $this->assertSame('No, 391 = 17 × 23.', $answer);
+        // What is cached and billed is the answer alone.
+        $this->assertSame('No, 391 = 17 × 23.', $stream->getReturn()->text);
+    }
+
+    #[Test]
+    public function a_thought_tag_after_the_answer_has_started_is_just_text(): void
+    {
+        Http::fake(['api.groq.com/*' => Http::response($this->sse([
+            ['choices' => [['delta' => ['content' => 'Use the <thought> tag like this: <thought>x</thought>']]]],
+            ['choices' => [['delta' => [], 'finish_reason' => 'stop']]],
+        ]))]);
+
+        $stream = $this->stream('groq-qwen3.8-27b');
+        iterator_to_array($stream);
+
+        $this->assertSame('Use the <thought> tag like this: <thought>x</thought>', $stream->getReturn()->text);
     }
 
     #[Test]

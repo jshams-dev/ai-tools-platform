@@ -3,49 +3,138 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
+/*
+ * Dark mode is a class on <html>, not only the OS setting, so the user can
+ * override it from the profile menu. The class is set before first paint by
+ * the inline script in the layout — "system" simply mirrors the OS.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
     /* Vazirmatn covers Persian and Arabic, which Instrument Sans does not. */
     --font-sans: 'Instrument Sans', 'Vazirmatn', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
         'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* The brand gradient, used sparingly: marks, the send button, focus glow. */
+    --color-accent-1: oklch(0.62 0.21 293);
+    --color-accent-2: oklch(0.66 0.24 328);
+    --color-accent-3: oklch(0.79 0.16 60);
+
+    --animate-rise: rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    --animate-pop: pop 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 [x-cloak] {
     display: none !important;
 }
 
+/*
+ * Glass is reserved for things that float over content — the message box,
+ * menus, the settings sheet. Everything else stays solid, so the effect reads
+ * as depth rather than as decoration. A utility (not a component class) so
+ * other rules can @apply it.
+ */
+@utility glass {
+    @apply border border-white/70 bg-white/72 shadow-[0_8px_32px_-12px_rgb(24_24_27/0.18)] backdrop-blur-xl backdrop-saturate-150 dark:border-white/8 dark:bg-zinc-900/65 dark:shadow-[0_8px_32px_-12px_rgb(0_0_0/0.6)];
+}
+
+@layer base {
+    html {
+        color-scheme: light;
+    }
+
+    html.dark {
+        color-scheme: dark;
+    }
+
+    ::selection {
+        background: color-mix(in oklch, var(--color-accent-1) 25%, transparent);
+    }
+}
+
 @layer components {
     .brand-mark {
-        @apply grid shrink-0 place-items-center bg-linear-to-br from-violet-500 via-fuchsia-500 to-orange-400 text-white shadow-sm;
+        @apply grid shrink-0 place-items-center bg-linear-to-br from-accent-1 via-accent-2 to-accent-3 text-white shadow-sm shadow-accent-2/30;
     }
 
     .icon-button {
-        @apply grid size-9 shrink-0 place-items-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100;
-    }
-
-    .pill {
-        @apply inline-flex h-8 items-center gap-1.5 rounded-full border border-zinc-200 px-3 text-[13px] font-medium whitespace-nowrap text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-700/80 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100;
-    }
-
-    .menu {
-        @apply absolute z-20 w-56 rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-xl shadow-zinc-950/10 dark:border-zinc-800 dark:bg-zinc-900;
-    }
-
-    .menu-item {
-        @apply flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-zinc-100 dark:hover:bg-zinc-800;
+        @apply grid size-9 shrink-0 place-items-center rounded-xl text-zinc-500 transition hover:bg-zinc-900/5 hover:text-zinc-900 active:scale-95 dark:hover:bg-white/8 dark:hover:text-zinc-100;
     }
 
     /*
-     * Streaming reply. Empty until the first fragment lands, so the "thinking"
-     * shimmer is pure CSS and disappears on its own; once text arrives, a
-     * caret follows it.
+     * min-w-0 + max-w-full let a pill shrink inside a crowded row instead of
+     * spilling over its neighbour; the label inside truncates.
      */
-    .stream-target:empty::before {
-        content: 'Thinking…';
-        @apply bg-linear-to-r from-zinc-400 via-zinc-800 to-zinc-400 bg-clip-text text-transparent dark:from-zinc-500 dark:via-zinc-100 dark:to-zinc-500;
-        background-size: 200% 100%;
-        animation: shimmer 1.6s linear infinite;
+    .pill {
+        @apply inline-flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-full border border-zinc-900/8 bg-zinc-900/3 px-3 text-[13px] font-medium whitespace-nowrap text-zinc-600 transition hover:border-zinc-900/15 hover:bg-zinc-900/6 hover:text-zinc-900 active:scale-[0.97] dark:border-white/8 dark:bg-white/4 dark:text-zinc-300 dark:hover:border-white/15 dark:hover:bg-white/8 dark:hover:text-zinc-100;
     }
 
+    .menu {
+        @apply glass absolute z-30 w-56 rounded-2xl p-1.5;
+    }
+
+    .menu-item {
+        @apply flex w-full items-center justify-between gap-3 rounded-xl px-2.5 py-2 text-left text-sm transition hover:bg-zinc-900/5 dark:hover:bg-white/8;
+    }
+
+    /* The message box: glass, with a soft brand glow while you type. */
+    .composer {
+        @apply glass rounded-[26px] p-2 transition-[box-shadow,border-color] duration-300;
+
+        &:focus-within {
+            @apply border-accent-1/30 dark:border-accent-1/35;
+            box-shadow:
+                0 0 0 4px color-mix(in oklch, var(--color-accent-1) 10%, transparent),
+                0 12px 40px -12px color-mix(in oklch, var(--color-accent-2) 35%, transparent);
+        }
+    }
+
+    .send-button {
+        @apply grid size-9 shrink-0 place-items-center rounded-full bg-linear-to-br from-accent-1 via-accent-2 to-accent-3 text-white shadow-md shadow-accent-2/30 transition hover:scale-105 hover:shadow-lg active:scale-95;
+
+        &:disabled {
+            @apply cursor-not-allowed bg-none bg-zinc-200 text-zinc-400 shadow-none hover:scale-100 dark:bg-zinc-800 dark:text-zinc-600;
+        }
+    }
+
+    /*
+     * The empty-state backdrop: three blurred blobs of the brand colours
+     * drifting slowly. Low opacity on purpose — it should be felt, not seen.
+     */
+    .aurora {
+        @apply pointer-events-none absolute inset-0 -z-10 overflow-hidden;
+
+        & > span {
+            @apply absolute size-[28rem] rounded-full opacity-25 blur-3xl dark:opacity-20;
+            animation: drift 18s ease-in-out infinite alternate;
+        }
+
+        & > span:nth-child(1) { @apply -top-24 left-[10%] bg-accent-1; }
+        & > span:nth-child(2) { @apply top-[20%] right-[5%] bg-accent-2; animation-duration: 22s; animation-delay: -6s; }
+        & > span:nth-child(3) { @apply bottom-[-6rem] left-[35%] bg-accent-3 opacity-15; animation-duration: 26s; animation-delay: -12s; }
+    }
+
+    /* The reply avatar while the model works: a slowly turning gradient ring. */
+    .thinking-orb {
+        @apply relative;
+
+        &::before {
+            content: '';
+            @apply absolute -inset-[3px] -z-10 rounded-full;
+            background: conic-gradient(from 0deg, var(--color-accent-1), var(--color-accent-2), var(--color-accent-3), var(--color-accent-1));
+            animation: spin 2.4s linear infinite;
+            filter: blur(1px);
+        }
+    }
+
+    /* Shimmering status text: "Thinking…" or the model's latest thought. */
+    .shimmer-text {
+        @apply bg-linear-to-r from-zinc-400 via-zinc-800 to-zinc-400 bg-clip-text text-transparent dark:from-zinc-500 dark:via-zinc-100 dark:to-zinc-500;
+        background-size: 200% 100%;
+        animation: shimmer 1.8s linear infinite;
+    }
+
+    /* Once answer text arrives, a caret follows it. */
     .stream-target:not(:empty)::after {
         content: '';
         @apply ms-0.5 inline-block h-[1.1em] w-[0.5em] translate-y-[0.2em] rounded-[2px] bg-current opacity-70;
@@ -64,13 +153,13 @@
         & ul { @apply list-disc ps-6; }
         & ol { @apply list-decimal ps-6; }
         & li + li { @apply mt-1.5; }
-        & li::marker { @apply text-zinc-400; }
+        & li::marker { @apply text-accent-1/70; }
         & strong { @apply font-semibold; }
-        & a { @apply underline decoration-zinc-300 underline-offset-2 hover:decoration-current; }
-        & blockquote { @apply border-s-2 border-zinc-300 ps-4 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400; }
+        & a { @apply text-accent-1 underline decoration-accent-1/30 underline-offset-2 hover:decoration-current; }
+        & blockquote { @apply border-s-2 border-accent-1/40 ps-4 text-zinc-600 dark:text-zinc-400; }
         & hr { @apply border-zinc-200 dark:border-zinc-800; }
-        & :not(pre) > code { @apply rounded-md bg-zinc-100 px-1.5 py-0.5 text-[0.875em] dark:bg-zinc-800; }
-        & pre { @apply overflow-x-auto rounded-xl bg-zinc-100 p-4 text-sm leading-6 dark:bg-zinc-900; }
+        & :not(pre) > code { @apply rounded-md bg-zinc-900/5 px-1.5 py-0.5 text-[0.875em] dark:bg-white/8; }
+        & pre { @apply overflow-x-auto rounded-xl bg-zinc-900/4 p-4 text-sm leading-6 dark:bg-white/5; }
         & table { @apply w-full border-collapse text-sm; }
         & th, & td { @apply border border-zinc-200 px-3 py-1.5 text-start dark:border-zinc-800; }
     }
@@ -83,4 +172,34 @@
 
 @keyframes caret {
     50% { opacity: 0; }
+}
+
+@keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes pop {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes drift {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to { transform: translate3d(6%, 8%, 0) scale(1.15); }
+}
+
+@keyframes spin {
+    to { transform: rotate(1turn); }
+}
+
+/* Motion is a nicety. Anyone who has asked their OS for less gets none. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+    }
 }

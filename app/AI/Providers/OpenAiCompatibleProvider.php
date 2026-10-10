@@ -10,6 +10,7 @@ use App\AI\Exceptions\InvalidResponseException;
 use App\AI\Exceptions\UnsupportedCapabilityException;
 use App\AI\Requests\TextGenerationRequest;
 use App\AI\ResolvedModel;
+use App\AI\Results\ReasoningDelta;
 use App\AI\Results\TextResult;
 use App\AI\Results\TokenUsage;
 use App\Clients\BaseHttpClient;
@@ -58,7 +59,7 @@ final class OpenAiCompatibleProvider implements TextGenerator
         $choice = $response['choices'][0] ?? throw InvalidResponseException::missingField($this->name(), 'choices');
         $message = is_array($choice['message'] ?? null) ? $choice['message'] : [];
 
-        $text = is_string($message['content'] ?? null) ? $message['content'] : '';
+        $text = LeadingThoughtSplitter::stripFrom(is_string($message['content'] ?? null) ? $message['content'] : '');
         $stopReason = $this->normaliseStopReason($choice['finish_reason'] ?? null);
 
         $this->assertUsable($text, $stopReason, $message['refusal'] ?? null);
@@ -93,6 +94,7 @@ final class OpenAiCompatibleProvider implements TextGenerator
         $stopReason = null;
         $refusal = null;
         $usage = null;
+        $thoughts = new LeadingThoughtSplitter;
 
         foreach (ServerSentEvents::parse($chunks) as $event) {
             if (trim($event['data']) === '[DONE]') {
@@ -116,15 +118,28 @@ final class OpenAiCompatibleProvider implements TextGenerator
             if (is_array($choice)) {
                 $delta = is_array($choice['delta'] ?? null) ? $choice['delta'] : [];
 
-                // Only `content` is the answer. Reasoning models stream their
-                // thinking in `reasoning` / `reasoning_content`, which must
-                // never be spliced into what the user reads.
+                // Thinking arrives in `reasoning` (Groq, OpenRouter) or
+                // `reasoning_content` (others). It is passed on as its own
+                // type for the UI to show as status, and never collected
+                // into the answer.
+                $reasoning = $delta['reasoning'] ?? $delta['reasoning_content'] ?? null;
+
+                if (is_string($reasoning) && $reasoning !== '') {
+                    yield new ReasoningDelta($reasoning);
+                }
+
+                // Gemini puts its thoughts inside `content` instead, in
+                // leading <thought> blocks; the splitter separates them.
                 $fragment = $delta['content'] ?? null;
 
                 if (is_string($fragment) && $fragment !== '') {
-                    $text .= $fragment;
+                    foreach ($thoughts->push($fragment) as $piece) {
+                        if (is_string($piece)) {
+                            $text .= $piece;
+                        }
 
-                    yield $fragment;
+                        yield $piece;
+                    }
                 }
 
                 $refusal = $delta['refusal'] ?? $refusal;
@@ -133,6 +148,14 @@ final class OpenAiCompatibleProvider implements TextGenerator
 
             // Usage arrives in a final chunk of its own, with no choices.
             $usage = $data['usage'] ?? $usage;
+        }
+
+        foreach ($thoughts->flush() as $piece) {
+            if (is_string($piece)) {
+                $text .= $piece;
+            }
+
+            yield $piece;
         }
 
         $this->assertUsable($text, $stopReason, $refusal);

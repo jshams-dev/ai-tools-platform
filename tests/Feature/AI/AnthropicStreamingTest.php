@@ -10,6 +10,7 @@ use App\AI\ModelRegistry;
 use App\AI\ProviderFactory;
 use App\AI\Requests\TextGenerationRequest;
 use App\AI\ResolvedModel;
+use App\AI\Results\ReasoningDelta;
 use App\AI\Results\TextResult;
 use App\Clients\Exceptions\BadRequestException;
 use Illuminate\Http\Client\Request;
@@ -193,7 +194,7 @@ final class AnthropicStreamingTest extends TestCase
     }
 
     #[Test]
-    public function it_ignores_thinking_deltas(): void
+    public function thinking_deltas_are_passed_on_separately_and_never_join_the_answer(): void
     {
         // Thinking models emit thinking_delta on the same event type. Treating
         // every delta as output would splice reasoning into the answer.
@@ -204,11 +205,10 @@ final class AnthropicStreamingTest extends TestCase
             'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Answer"}}'."\n\n",
         ]))]);
 
-        $fragments = iterator_to_array($this->provider()->streamText(
-            new TextGenerationRequest(userPrompt: 'Think.'),
-            $this->model(),
-        ), preserve_keys: false);
+        $stream = $this->provider()->streamText(new TextGenerationRequest(userPrompt: 'Think.'), $this->model());
+        $fragments = iterator_to_array($stream, preserve_keys: false);
 
-        $this->assertSame(['Answer'], $fragments);
+        $this->assertEquals([new ReasoningDelta('hmm'), 'Answer'], $fragments);
+        $this->assertSame('Answer', $stream->getReturn()->text);
     }
 }

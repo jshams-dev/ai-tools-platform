@@ -10,6 +10,7 @@ use App\AI\Exceptions\InvalidResponseException;
 use App\AI\Exceptions\UnsupportedCapabilityException;
 use App\AI\Requests\TextGenerationRequest;
 use App\AI\ResolvedModel;
+use App\AI\Results\ReasoningDelta;
 use App\AI\Results\TextResult;
 use App\AI\Results\TokenUsage;
 use App\Clients\BaseHttpClient;
@@ -86,12 +87,17 @@ final class AnthropicProvider implements TextGenerator
 
                 case 'content_block_delta':
                     // Thinking models also emit thinking_delta on this event.
-                    // Only text_delta is the answer.
-                    if (($data['delta']['type'] ?? null) === 'text_delta') {
+                    // Only text_delta is the answer; thinking is passed on as
+                    // its own type, for the UI to show as status.
+                    $deltaType = $data['delta']['type'] ?? null;
+
+                    if ($deltaType === 'text_delta') {
                         $fragment = (string) ($data['delta']['text'] ?? '');
                         $text .= $fragment;
 
                         yield $fragment;
+                    } elseif ($deltaType === 'thinking_delta' && ($data['delta']['thinking'] ?? '') !== '') {
+                        yield new ReasoningDelta((string) $data['delta']['thinking']);
                     }
                     break;
 

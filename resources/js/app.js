@@ -32,6 +32,21 @@ async function copyText(text) {
     }
 }
 
+function readTheme() {
+    try {
+        return localStorage.getItem('theme') ?? 'system';
+    } catch {
+        return 'system';
+    }
+}
+
+function applyTheme(mode) {
+    const dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+    document.documentElement.classList.toggle('dark', dark);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#09090b' : '#ffffff');
+}
+
 document.addEventListener('alpine:init', () => {
     const Alpine = window.Alpine;
 
@@ -100,6 +115,62 @@ document.addEventListener('alpine:init', () => {
             }
         },
     }));
+
+    /**
+     * Model list in the settings panel: a search box and provider chips over
+     * a list that is already on the page. Matching is case-insensitive on the
+     * model name and its provider, so "gem" and "groq" both work.
+     */
+    Alpine.data('modelPicker', ({ value, models, fallback }) => ({
+        value,
+        models,
+        fallback,
+        query: '',
+        provider: '',
+
+        get current() {
+            return this.value ?? this.fallback;
+        },
+
+        get providers() {
+            return [...new Set(this.models.map((model) => model.provider))];
+        },
+
+        get filtered() {
+            const needle = this.query.trim().toLowerCase();
+
+            return this.models.filter((model) =>
+                (this.provider === '' || model.provider === this.provider)
+                && (needle === '' || `${model.name} ${model.provider}`.toLowerCase().includes(needle)));
+        },
+    }));
+
+    /**
+     * Light, dark, or follow the system. Stored per browser; "system" is the
+     * default and tracks the OS setting live. The inline script in the
+     * layout applies the same rule before first paint, so there is no flash.
+     */
+    Alpine.store('theme', {
+        mode: readTheme(),
+
+        set(mode) {
+            this.mode = mode;
+
+            try {
+                mode === 'system' ? localStorage.removeItem('theme') : localStorage.setItem('theme', mode);
+            } catch {
+                // Private mode or blocked storage: the choice lasts this visit only.
+            }
+
+            applyTheme(mode);
+        },
+    });
+
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        if (Alpine.store('theme').mode === 'system') {
+            applyTheme('system');
+        }
+    });
 
     /**
      * The conversation: follows new output to the bottom while the reader is
