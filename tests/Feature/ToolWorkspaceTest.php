@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Livewire\ToolWorkspace;
 use App\Models\UsageLog;
+use App\Models\User;
 use Database\Seeders\ToolCatalogSeeder;
 use Illuminate\Support\Facades\Http;
 use Livewire\Features\SupportTesting\Testable;
@@ -273,5 +274,60 @@ final class ToolWorkspaceTest extends TestCase
             ->call('newChat')
             ->assertSet('messages', [])
             ->assertSet('options.tone', 'neutral');
+    }
+
+    #[Test]
+    public function a_guest_gets_a_few_free_runs_then_is_asked_to_sign_in(): void
+    {
+        config(['tools.guest_runs_per_day' => 1]);
+        $this->fakeStream(['One.']);
+
+        $component = $this->workspace()
+            ->assertSee('1 free message left today.')
+            ->set('prompt', 'First')
+            ->call('send');
+        $this->respond($component);
+
+        $component->set('prompt', 'Second')
+            ->call('send')
+            ->assertSet('signInRequired', true)
+            ->assertSee("You've used today's free messages")
+            // Nothing was sent; the message stays in the box.
+            ->assertSet('prompt', 'Second')
+            ->assertCount('messages', 2);
+
+        Http::assertSentCount(1);
+        $this->assertSame(route('tools.show', 'text-transformer'), session('url.intended'));
+    }
+
+    #[Test]
+    public function the_unsent_message_is_back_in_the_box_after_signing_in(): void
+    {
+        config(['tools.guest_runs_per_day' => 0]);
+
+        $this->workspace()->set('prompt', 'Keep me')->call('send');
+
+        $this->actingAs(User::factory()->create());
+
+        $this->workspace()->assertSet('prompt', 'Keep me');
+        $this->assertNull(session('workspace.draft.text-transformer'));
+    }
+
+    #[Test]
+    public function a_signed_in_user_is_not_limited_by_the_guest_allowance(): void
+    {
+        config(['tools.guest_runs_per_day' => 0]);
+        $this->fakeStream(['One.']);
+        $user = User::factory()->create();
+
+        $component = Livewire::actingAs($user)
+            ->test(ToolWorkspace::class, ['slug' => 'text-transformer'])
+            ->assertDontSee('free messages left')
+            ->set('prompt', 'Hi')
+            ->call('send');
+        $this->respond($component);
+
+        $this->assertSame('done', $component->get('messages')[1]['status']);
+        $this->assertSame($user->id, UsageLog::sole()->user_id);
     }
 }

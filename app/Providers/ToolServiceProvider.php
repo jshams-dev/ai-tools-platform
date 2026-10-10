@@ -32,6 +32,7 @@ final class ToolServiceProvider extends ServiceProvider implements DeferrablePro
             limiter: $app->make(RateLimiter::class),
             maxRunsPerWindow: (int) config('tools.throttle.max_runs', 20),
             windowSeconds: (int) config('tools.throttle.window_seconds', 60),
+            guestRunsPerDay: (int) config('tools.guest_runs_per_day', 3),
         ));
     }
 

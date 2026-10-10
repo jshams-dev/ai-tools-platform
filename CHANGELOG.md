@@ -12,6 +12,16 @@ Branch `feature/auth-and-history` — Phase 4 of the build plan.
 ### Added
 
 - **Accounts**: sign up, sign in, sign out, and password reset by email (Laravel Fortify, with our own pages). Sign-in attempts are limited to five a minute per email and IP. The sidebar shows the signed-in user, or "Sign in" and "Create a free account" to a visitor.
+- **Guests can try tools**: three free messages a day (`TOOLS_GUEST_RUNS_PER_DAY`), counted under the message box. After that a sign-in card appears in the chat, and the unsent message is back in the message box after signing in. A signed-in user's runs are logged under their account.
+
+### Fixed
+
+- Switching between light and dark is smooth instead of juddering.
+- The empty chat no longer cuts off its top when its content is taller than the screen.
+
+### Security
+
+- `league/commonmark` updated to 2.10.3 (two advisories, one high).
 
 Branch `feature/text-tools-chat-ui` (merged into `develop`) — Phase 3 of the build plan.
 

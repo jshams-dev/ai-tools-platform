@@ -6,6 +6,7 @@ namespace App\Tools;
 
 use App\Tools\Contracts\ToolHandler;
 use App\Tools\Contracts\ToolInterface;
+use App\Tools\Exceptions\SignInRequiredException;
 use App\Tools\Exceptions\ToolRateLimitedException;
 use App\Tools\Schema\Field;
 use App\Usage\RunContext;
@@ -25,6 +26,9 @@ use Illuminate\Validation\ValidationException;
  * Livewire actions arrive on its own update endpoint, not on the page's
  * route, so `throttle` on /tools/{slug} would limit page views and leave the
  * call that spends money completely unguarded.
+ *
+ * Guests get a few free runs a day (§18.1) — enough to try a tool, not to
+ * live on. After that a run asks them to sign in.
  */
 final class ToolRunner
 {
@@ -34,7 +38,20 @@ final class ToolRunner
         private readonly RateLimiter $limiter,
         private readonly int $maxRunsPerWindow = 20,
         private readonly int $windowSeconds = 60,
+        private readonly int $guestRunsPerDay = 3,
     ) {}
+
+    /**
+     * How many free runs this guest has left today; null for a signed-in user.
+     */
+    public function guestRunsLeft(RunContext $ctx): ?int
+    {
+        if (! $ctx->isGuest()) {
+            return null;
+        }
+
+        return max(0, $this->guestRunsPerDay - $this->limiter->attempts($this->guestKey($ctx)));
+    }
 
     /**
      * Validate input against the tool's schema and fill in defaults.
@@ -71,7 +88,7 @@ final class ToolRunner
      * @param  array<string, mixed>  $input
      * @return \Generator<int, string, mixed, ToolResult|null>
      *
-     * @throws ValidationException|ToolRateLimitedException
+     * @throws ValidationException|SignInRequiredException|ToolRateLimitedException
      */
     public function stream(ToolInterface $tool, array $input, RunContext $ctx): \Generator
     {
@@ -86,6 +103,7 @@ final class ToolRunner
         // After validation: a rejected input never reaches a vendor, so it
         // should not use up one of the caller's runs either.
         $this->throttle($ctx);
+        $this->meterGuest($ctx);
 
         /** @var ToolHandler $handler */
         $handler = $this->container->make($tool->handler());
@@ -106,6 +124,34 @@ final class ToolRunner
         }
 
         $this->limiter->hit($key, $this->windowSeconds);
+    }
+
+    /**
+     * Count a guest's run against today's allowance, or refuse it.
+     *
+     * The window starts at the guest's first run and lasts a day. Keyed by
+     * IP hash, like the throttle, so clearing cookies does not reset it.
+     *
+     * @throws SignInRequiredException
+     */
+    private function meterGuest(RunContext $ctx): void
+    {
+        if (! $ctx->isGuest()) {
+            return;
+        }
+
+        $key = $this->guestKey($ctx);
+
+        if ($this->limiter->tooManyAttempts($key, $this->guestRunsPerDay)) {
+            throw new SignInRequiredException;
+        }
+
+        $this->limiter->hit($key, 86400);
+    }
+
+    private function guestKey(RunContext $ctx): string
+    {
+        return 'guest-runs:'.$ctx->ipHash;
     }
 
     private function valueOrDefault(mixed $value, Field $field): ?string

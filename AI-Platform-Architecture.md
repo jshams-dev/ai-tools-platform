@@ -1003,7 +1003,7 @@ Ordered so that something demonstrable exists early. Running out of momentum bef
 | 1 ✅ | `BaseHttpClient` + `ServerSentEvents` + exception layer + `Capability` + capability interfaces + `AiRequest` + `ModelRegistry` + two real providers (`Anthropic` sync **and** stream, `DeepL` translation-only) + `ProviderFactory` + `config/ai.php` | AI core + transport |
 | 2 ✅ | `AiGateway` (sync + stream) + `AiResponseCache` + `ModelPolicy` + `ModelResolver` + `RunContext` + `usage_logs` + `UsageLogRepository` | Mediation layer |
 | 3 ✅ | `ToolRegistry` + `Field` schema + **chat-style workspace** (not a form) + first tool (Text Transformer) + `wire:stream` + per-caller throttle + daily spend cap + providers/models/tools in the database + `OpenAiCompatibleProvider` with free models | 🎯 **First working, demoable thing** |
-| 4 | **Login required — no guest access** + `plans` (a free plan for every new account) + **saved chat history per user** + `usage_counters` + reserve/commit + per-user quotas | Business model |
+| 4 | **Accounts** + a few free runs a day for guests, then sign-in + `plans` (a free plan for every new account) + **saved chat history per user** + `usage_counters` + reserve/commit + per-user quotas | Business model |
 | 5 | Catalog UI (grid, categories, tool pages) + content files + SEO (sitemap, JSON-LD, meta) | A real site |
 | 6 | REST API v1 behind `X-Api-Key`, including SSE streaming | Second entry point |
 | 7 | Hotel Description + Room Normalizer (with `RuleBasedClassifier` fallback chain) | 3 tools |
@@ -1021,11 +1021,11 @@ The REST API stays in v1 but lands after the tools exist, because an API designe
 
 These supersede the guest tier in §11.1 and the deferred `tool_runs` table in §13.2.
 
-**No guests.** Like every mainstream AI product, using a tool requires an account. Signing up puts the user on the free plan; there is no anonymous access to any tool. Consequences:
+**Guests may try, accounts are for using** (revised 2026-10-11; first drafted as "no guests"). Like ChatGPT, Copilot and Perplexity, the homepage opens on a working chat, not a login form. A visitor gets a few free runs a day (`tools.guest_runs_per_day`, default 3) on free models, with nothing saved. When they are used up, sending shows a sign-in card in the chat; the unsent message is kept in the session and is back in the message box after signing in. Signing up puts the user on the free plan. Consequences:
 
-- `RunContext::forGuest()` and the `guest` row in `plans` go away; every run has a `userId`.
-- Quotas are per user only. The per-IP throttle stays as abuse protection on the login and signup routes, not as a billing mechanism.
-- Tool pages may stay public for SEO (§14.3); the message box asks the visitor to sign in.
+- `RunContext::forGuest()` stays for visitors; a signed-in user's runs carry their `userId`.
+- The guest allowance is metered in `ToolRunner` by IP hash, like the throttle, so every entry point inherits it and clearing cookies does not reset it.
+- Quotas beyond that allowance are per user. The per-IP throttle also guards the login and signup routes.
 
 **Saved chat history.** Every conversation is stored per user, so a reply never lives only in the browser. Today a dropped connection or a page reload loses the conversation; with history it is one click away.
 
@@ -1050,7 +1050,7 @@ These supersede the guest tier in §11.1 and the deferred `tool_runs` table in �
 - **Operational Awareness** — quota reservation with refund-on-failure, spend circuit breakers, abort detection on streams, Octane-safe design
 - **SEO** — server-rendered, registry-driven sitemap and structured data
 
-**Next step:** Phase 4 — login required, plans, and saved chat history per user (§18.1).
+**Next step:** Phase 4 — accounts with a small guest allowance, plans, and saved chat history per user (§18.1).
 
 Phases 1–3 are complete: transport, the capability model, the gateway with caching,
 fallback and usage logging, the tool layer, a chat-style workspace, providers, models

@@ -11,6 +11,7 @@ use App\AI\Results\ReasoningDelta;
 use App\Clients\Exceptions\HttpClientException;
 use App\Models\Tool;
 use App\Tools\Contracts\ToolInterface;
+use App\Tools\Exceptions\SignInRequiredException;
 use App\Tools\Exceptions\ToolRateLimitedException;
 use App\Tools\Schema\Field;
 use App\Tools\ToolRegistry;
@@ -34,6 +35,10 @@ use Livewire\Component;
  * Sending is split in two requests on purpose. `send()` returns at once, so
  * the user's message appears immediately; `respond()` is then called from the
  * browser and streams the answer into the page as it is generated.
+ *
+ * Guests may use it too, a few times a day (§18.1). When their free runs are
+ * gone, sending shows a sign-in card instead, and the unsent message waits in
+ * the session so it is back in the message box after they sign in.
  */
 final class ToolWorkspace extends Component
 {
@@ -60,10 +65,18 @@ final class ToolWorkspace extends Component
     #[Locked]
     public array $messages = [];
 
+    /** A guest tried to send with no free runs left. */
+    #[Locked]
+    public bool $signInRequired = false;
+
     public function mount(string $slug): void
     {
         $this->slug = $slug;
         $this->options = $this->defaultOptions();
+
+        if (auth()->check()) {
+            $this->prompt = (string) session()->pull($this->draftKey(), '');
+        }
     }
 
     /** The tool's row: name, description, and the models it may use. */
@@ -91,6 +104,12 @@ final class ToolWorkspace extends Component
         // Validated here as well as in respond(): a bad input should show up
         // under the message box, not as a failed reply in the conversation.
         $input = $runner->validate($this->definition, [...$this->options, $primary->name => $this->prompt]);
+
+        if ($runner->guestRunsLeft($this->runContext()) === 0) {
+            $this->askToSignIn();
+
+            return;
+        }
 
         $this->messages[] = [
             'id' => Str::random(12),
@@ -132,12 +151,7 @@ final class ToolWorkspace extends Component
         // this just keeps PHP from cutting in first.
         set_time_limit((int) config('ai.http.stream_timeout', 300) + 30);
 
-        $ctx = RunContext::forGuest(
-            toolSlug: $this->tool->slug,
-            policy: $this->tool->modelPolicy(),
-            ip: (string) request()->ip(),
-            requestedModel: $this->model,
-        );
+        $ctx = $this->runContext();
 
         $buffer = '';
         $thought = '';
@@ -167,6 +181,12 @@ final class ToolWorkspace extends Component
             }
 
             $this->messages[$index] = [...$reply, 'content' => $buffer, 'status' => 'done'];
+        } catch (SignInRequiredException) {
+            // Only reachable if the allowance ran out between send() and
+            // here, e.g. in another tab. The message goes back in the box.
+            $this->prompt = (string) $question['content'];
+            array_splice($this->messages, $index - 1, 2);
+            $this->askToSignIn();
         } catch (\Throwable $e) {
             // Whatever arrived before the failure is kept: the user has
             // already read it, and it disappearing would be stranger.
@@ -260,15 +280,16 @@ final class ToolWorkspace extends Component
     #[On('new-chat')]
     public function newChat(): void
     {
-        $this->reset('prompt', 'messages');
+        $this->reset('prompt', 'messages', 'signInRequired');
         $this->options = $this->defaultOptions();
         $this->resetErrorBag();
         $this->dispatch('focus-composer');
     }
 
-    public function render(): View
+    public function render(ToolRunner $runner): View
     {
-        $models = $this->tool->modelsFor(RunContext::TIER_GUEST);
+        $ctx = $this->runContext();
+        $models = $this->tool->modelsFor($ctx->tier);
 
         return view('livewire.tool-workspace', [
             'tool' => $this->tool,
@@ -277,7 +298,52 @@ final class ToolWorkspace extends Component
             'settingFields' => $this->settingFields(),
             'models' => $models,
             'defaultModel' => $models->first(),
+            'guestRunsLeft' => $runner->guestRunsLeft($ctx),
         ]);
+    }
+
+    /**
+     * Who is running the tool: the signed-in user, or a guest by IP.
+     *
+     * Every signed-in user is on the free tier until plans exist.
+     */
+    private function runContext(): RunContext
+    {
+        $user = auth()->user();
+
+        return $user === null
+            ? RunContext::forGuest(
+                toolSlug: $this->slug,
+                policy: $this->tool->modelPolicy(),
+                ip: (string) request()->ip(),
+                requestedModel: $this->model,
+            )
+            : RunContext::forUser(
+                toolSlug: $this->slug,
+                policy: $this->tool->modelPolicy(),
+                user: $user,
+                ip: (string) request()->ip(),
+                requestedModel: $this->model,
+            );
+    }
+
+    /**
+     * Show the sign-in card, and keep the unsent message for after sign-in.
+     *
+     * Livewire requests arrive on its own endpoint, so the page to come back
+     * to is set explicitly rather than taken from the request.
+     */
+    private function askToSignIn(): void
+    {
+        $this->signInRequired = true;
+
+        session()->put($this->draftKey(), $this->prompt);
+        session()->put('url.intended', route('tools.show', $this->slug));
+    }
+
+    private function draftKey(): string
+    {
+        return 'workspace.draft.'.$this->slug;
     }
 
     private function primaryField(): Field

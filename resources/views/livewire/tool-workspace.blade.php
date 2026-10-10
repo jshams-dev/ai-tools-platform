@@ -29,8 +29,9 @@
         {{-- Empty conversation: the composer sits in the middle, like a fresh chat --}}
         <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
 
-        <div class="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-[12vh]">
-            <div class="w-full max-w-3xl">
+        {{-- my-auto, not justify-center: content taller than the screen then scrolls instead of being cut off at the top. --}}
+        <div class="flex flex-1 flex-col items-center overflow-y-auto px-4 pb-[12vh]">
+            <div class="my-auto w-full max-w-3xl">
                 <div class="mb-8 text-center">
                     <div class="mx-auto mb-5 w-fit animate-float">
                         <span class="brand-mark size-14 animate-pop rounded-2xl">
@@ -42,7 +43,15 @@
                 </div>
 
                 <div class="animate-rise [animation-delay:120ms]">
+                    @if ($signInRequired)
+                        @include('livewire.partials.sign-in-card')
+                    @endif
+
                     @include('livewire.partials.composer')
+
+                    @if ($guestRunsLeft !== null)
+                        @include('livewire.partials.guest-hint')
+                    @endif
                 </div>
 
                 <div class="mt-5 flex flex-wrap justify-center gap-2">
@@ -190,9 +199,17 @@
 
         <div class="shrink-0 px-4 pb-3">
             <div class="mx-auto w-full max-w-3xl">
+                @if ($signInRequired)
+                    @include('livewire.partials.sign-in-card')
+                @endif
+
                 @include('livewire.partials.composer')
 
-                <p class="mt-2 text-center text-xs text-zinc-500">{{ __('AI can make mistakes. Check important details.') }}</p>
+                @if ($guestRunsLeft !== null)
+                    @include('livewire.partials.guest-hint')
+                @else
+                    <p class="mt-2 text-center text-xs text-zinc-500">{{ __('AI can make mistakes. Check important details.') }}</p>
+                @endif
             </div>
         </div>
     @endif

@@ -37,4 +37,16 @@ return [
         'window_seconds' => (int) env('TOOLS_THROTTLE_WINDOW_SECONDS', 60),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Free runs for guests
+    |--------------------------------------------------------------------------
+    |
+    | A visitor can try any tool without an account, this many times a day
+    | (§18.1). After that the chat asks them to sign in.
+    |
+    */
+
+    'guest_runs_per_day' => (int) env('TOOLS_GUEST_RUNS_PER_DAY', 3),
+
 ];
