@@ -64,9 +64,9 @@
             <button
                 type="button"
                 x-on:click="Livewire.dispatch('new-chat'); sidebar = false"
-                class="mt-3 flex items-center gap-2.5 rounded-xl border border-zinc-900/8 bg-white px-3 py-2.5 text-sm font-medium text-zinc-700 shadow-xs transition hover:border-accent-1/30 hover:shadow-md hover:shadow-accent-1/10 active:scale-[0.98] dark:border-white/8 dark:bg-white/5 dark:text-zinc-200"
+                class="mt-3 flex items-center gap-2.5 rounded-xl border border-zinc-900/8 bg-white px-3 py-2.5 text-sm font-medium text-zinc-700 shadow-xs transition hover:border-brand/30 hover:shadow-md hover:shadow-brand/10 active:scale-[0.98] dark:border-white/8 dark:bg-white/5 dark:text-zinc-200"
             >
-                <x-icon name="pencil-square" class="size-4.5 text-accent-1" />
+                <x-icon name="pencil-square" class="size-4.5 text-brand" />
                 {{ __('New chat') }}
             </button>
 
@@ -84,7 +84,7 @@
                     >
                         @if ($item->slug === $current)
                             {{-- Active marker: a short gradient bar on the leading edge --}}
-                            <span class="absolute inset-y-2 start-0 w-0.5 rounded-full bg-linear-to-b from-accent-1 to-accent-2"></span>
+                            <span class="absolute inset-y-2 start-0 w-0.5 rounded-full bg-brand-gradient"></span>
                         @endif
                         <span class="text-sm font-medium">{{ $item->name }}</span>
                         <span class="line-clamp-1 text-xs text-zinc-500">{{ $item->description }}</span>

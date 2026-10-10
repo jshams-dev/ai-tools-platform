@@ -42,8 +42,13 @@ function readTheme() {
 
 function applyTheme(mode) {
     const dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const root = document.documentElement;
 
-    document.documentElement.classList.toggle('dark', dark);
+    // Cross-fade colours for the switch only, so normal hovers stay snappy.
+    root.classList.add('theme-transition');
+    setTimeout(() => root.classList.remove('theme-transition'), 400);
+
+    root.classList.toggle('dark', dark);
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#09090b' : '#ffffff');
 }
 

@@ -32,9 +32,11 @@
         <div class="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-[12vh]">
             <div class="w-full max-w-3xl">
                 <div class="mb-8 text-center">
-                    <span class="brand-mark mx-auto mb-5 size-12 animate-pop rounded-2xl">
-                        <x-icon name="sparkle" class="size-6" />
-                    </span>
+                    <div class="mx-auto mb-5 w-fit animate-float">
+                        <span class="brand-mark size-14 animate-pop rounded-2xl">
+                            <x-icon name="sparkle" class="size-7" />
+                        </span>
+                    </div>
                     <h1 class="animate-rise text-2xl font-semibold tracking-tight sm:text-3xl">{{ $tool->name }}</h1>
                     <p class="mt-2 animate-rise text-zinc-500 [animation-delay:60ms]">{{ $tool->description }}</p>
                 </div>
@@ -49,8 +51,9 @@
                             type="button"
                             wire:click="useStarter({{ $index }})"
                             style="animation-delay: {{ 180 + $index * 50 }}ms"
-                            class="animate-rise rounded-full border border-zinc-900/8 bg-white/60 px-3.5 py-1.5 text-sm text-zinc-600 backdrop-blur transition hover:-translate-y-0.5 hover:border-accent-1/30 hover:text-zinc-900 hover:shadow-md hover:shadow-accent-1/10 dark:border-white/8 dark:bg-white/5 dark:text-zinc-400 dark:hover:text-zinc-100"
+                            class="group/starter flex animate-rise items-center gap-1.5 rounded-full border border-zinc-900/8 bg-white px-3.5 py-1.5 text-sm text-zinc-600 shadow-xs transition hover:-translate-y-0.5 hover:border-sun hover:text-zinc-900 hover:shadow-md hover:shadow-sun/25 active:scale-95 dark:border-white/8 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-sun/60 dark:hover:text-zinc-100"
                         >
+                            <x-icon name="sparkle" class="size-3.5 text-sun transition group-hover/starter:rotate-12 group-hover/starter:scale-125" />
                             {{ $starter['label'] }}
                         </button>
                     @endforeach
@@ -63,11 +66,16 @@
             <div class="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 pt-6 pb-10">
                 @foreach ($messages as $message)
                     @if ($message['role'] === 'user')
-                        <div wire:key="message-{{ $message['id'] }}" class="flex animate-rise flex-col items-end gap-1.5">
-                            {{-- Tap a sent message for its actions, like a long-press menu --}}
+                        <div wire:key="message-{{ $message['id'] }}" class="flex animate-slide-in flex-col items-end gap-1.5">
+                            {{--
+                                Tap a sent message for its actions, like a long-press menu.
+                                While open, this lifts above the messages after it, which
+                                would otherwise paint over the menu and swallow the tap.
+                            --}}
                             <div
                                 x-data="{ open: false, copied: false }"
                                 x-on:keydown.escape.stop="open = false"
+                                :class="open && 'z-20'"
                                 class="relative flex max-w-[85%] flex-col items-end"
                             >
                                 <button
@@ -76,7 +84,8 @@
                                     x-on:contextmenu.prevent="open = true"
                                     :aria-expanded="open"
                                     dir="auto"
-                                    class="rounded-3xl rounded-br-lg bg-zinc-900/5 px-5 py-3 text-start text-[15px] leading-7 break-words whitespace-pre-wrap transition hover:bg-zinc-900/8 active:scale-[0.99] dark:bg-white/8 dark:hover:bg-white/12"
+                                    data-message-bubble
+                                    class="rounded-3xl rounded-br-lg bg-brand/8 px-5 py-3 text-start text-[15px] leading-7 break-words whitespace-pre-wrap ring-1 ring-brand/10 transition hover:bg-brand/12 active:scale-[0.98] dark:bg-brand/15 dark:ring-brand/20 dark:hover:bg-brand/20"
                                 >{{ $message['content'] }}</button>
 
                                 <div
@@ -108,7 +117,7 @@
                             @if (! empty($message['tags']))
                                 <div class="flex flex-wrap justify-end gap-1.5 px-1">
                                     @foreach ($message['tags'] as $tag)
-                                        <span class="rounded-full bg-accent-1/8 px-2 py-0.5 text-xs text-accent-1 dark:bg-accent-1/15">{{ $tag }}</span>
+                                        <span class="rounded-full bg-brand/8 px-2 py-0.5 text-xs text-brand dark:bg-brand/15">{{ $tag }}</span>
                                     @endforeach
                                 </div>
                             @endif
@@ -167,7 +176,7 @@
                                                 aria-label="{{ __('Copy') }}"
                                             >
                                                 <x-icon name="copy" class="size-4" x-show="! copied" />
-                                                <x-icon name="check" class="size-4" x-cloak x-show="copied" />
+                                                <x-icon name="check" class="size-4 animate-pop text-brand" x-cloak x-show="copied" />
                                             </button>
                                         </div>
                                     @endif
@@ -187,4 +196,10 @@
             </div>
         </div>
     @endif
+
+    {{--
+        At the root, not inside the message box: anything animated around the
+        box would otherwise become the sheet's frame and trap it there.
+    --}}
+    @include('livewire.partials.settings-panel')
 </div>

@@ -54,10 +54,10 @@
                         class="pill disabled:cursor-default"
                         title="{{ __('Model') }}"
                     >
-                        <x-icon name="bolt" class="size-3.5 text-accent-1" />
+                        <x-icon name="bolt" class="size-3.5 text-brand" />
                         <span class="min-w-0 truncate" x-text="names[current] ?? current">{{ $defaultModel->name }}</span>
                         @if ($models->count() > 1)
-                            <x-icon name="chevron-down" class="size-3.5 opacity-60" />
+                            <x-icon name="chevron-down" class="size-3.5 opacity-60 transition-transform duration-200" ::class="open && 'rotate-180'" />
                         @endif
                     </button>
 
@@ -75,12 +75,12 @@
                                     <span class="flex items-center gap-2">
                                         <span class="truncate">{{ $option->name }}</span>
                                         @if ($loop->first)
-                                            <span class="rounded-full bg-accent-1/10 px-1.5 text-[11px] text-accent-1">{{ __('Default') }}</span>
+                                            <span class="rounded-full bg-brand/10 px-1.5 text-[11px] text-brand">{{ __('Default') }}</span>
                                         @endif
                                     </span>
                                     <span class="text-xs text-zinc-500">{{ $option->provider->name }}</span>
                                 </span>
-                                <x-icon name="check" class="size-4 shrink-0 text-accent-1" x-show="current === {{ Js::from($option->key) }}" />
+                                <x-icon name="check" class="size-4 shrink-0 text-brand" x-show="current === {{ Js::from($option->key) }}" />
                             </button>
                         @endforeach
                         <button
@@ -110,7 +110,7 @@
                         title="{{ $field->getLabel() }}"
                     >
                         <span class="min-w-0 truncate" x-text="labels[value] ?? value">{{ $field->labelFor((string) ($options[$field->name] ?? '')) }}</span>
-                        <x-icon name="chevron-down" class="size-3.5 opacity-60" />
+                        <x-icon name="chevron-down" class="size-3.5 opacity-60 transition-transform duration-200" ::class="open && 'rotate-180'" />
                     </button>
 
                     <div
@@ -128,7 +128,7 @@
                                 class="menu-item"
                             >
                                 <span>{{ $label }}</span>
-                                <x-icon name="check" class="size-4 text-accent-1" x-show="value === {{ Js::from($value) }}" />
+                                <x-icon name="check" class="size-4 text-brand" x-show="value === {{ Js::from($value) }}" />
                             </button>
                         @endforeach
                     </div>
@@ -172,5 +172,3 @@
 @error($primaryField->name)
     <p class="mt-2 animate-rise px-4 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
 @enderror
-
-@include('livewire.partials.settings-panel')

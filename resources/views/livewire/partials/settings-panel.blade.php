@@ -14,7 +14,8 @@
     aria-modal="true"
     aria-label="{{ __('Settings') }}"
 >
-    <div x-show="open" x-transition.opacity x-on:click="open = false" class="absolute inset-0 bg-zinc-950/40 backdrop-blur-sm"></div>
+    {{-- Tapping outside the sheet closes it; "Done" is not required. --}}
+    <div x-show="open" x-transition.opacity x-on:click="open = false" class="absolute inset-0 bg-zinc-950/45"></div>
 
     <div
         x-show="open"
@@ -22,7 +23,7 @@
         x-transition:enter-start="translate-y-6 opacity-0 sm:translate-y-2"
         x-transition:leave="transition duration-150 ease-in"
         x-transition:leave-end="translate-y-6 opacity-0 sm:translate-y-2"
-        class="glass relative flex max-h-[85dvh] w-full flex-col rounded-t-3xl border-b-0 bg-white/85 sm:max-w-lg sm:rounded-3xl sm:border-b dark:bg-zinc-900/80"
+        class="surface relative flex max-h-[85dvh] w-full flex-col rounded-t-3xl border-b-0 sm:max-w-lg sm:rounded-3xl sm:border-b"
     >
         {{-- Grab handle: says "this is a sheet you can dismiss" on phones --}}
         <div class="mx-auto mt-2.5 h-1 w-10 rounded-full bg-zinc-900/15 sm:hidden dark:bg-white/20"></div>
@@ -61,7 +62,7 @@
                             type="search"
                             x-model="query"
                             placeholder="{{ __('Search models…') }}"
-                            class="h-10 w-full rounded-xl border border-zinc-900/8 bg-zinc-900/3 ps-10 pe-3 text-sm outline-none transition placeholder:text-zinc-400 focus:border-accent-1/40 focus:ring-4 focus:ring-accent-1/10 dark:border-white/8 dark:bg-white/5"
+                            class="h-10 w-full rounded-xl border border-zinc-900/8 bg-zinc-900/3 ps-10 pe-3 text-sm outline-none transition placeholder:text-zinc-400 focus:border-brand/40 focus:ring-4 focus:ring-brand/10 dark:border-white/8 dark:bg-white/5"
                         >
                     </label>
 
@@ -72,7 +73,7 @@
                                 x-on:click="provider = name"
                                 x-text="name === '' ? @js(__('All')) : name"
                                 :class="provider === name
-                                    ? 'border-accent-1/40 bg-accent-1/10 text-accent-1'
+                                    ? 'border-brand/40 bg-brand/10 text-brand'
                                     : 'border-zinc-900/8 text-zinc-600 hover:border-zinc-900/15 dark:border-white/8 dark:text-zinc-400'"
                                 class="rounded-full border px-3 py-1 text-xs font-medium transition"
                             ></button>
@@ -85,7 +86,7 @@
                                 type="button"
                                 x-on:click="value = model.key"
                                 :class="current === model.key
-                                    ? 'border-accent-1/50 bg-accent-1/8 ring-4 ring-accent-1/8'
+                                    ? 'border-brand/50 bg-brand/8 ring-4 ring-brand/8'
                                     : 'border-zinc-900/8 hover:border-zinc-900/15 dark:border-white/8 dark:hover:border-white/15'"
                                 class="flex flex-col items-start rounded-2xl border px-3.5 py-2.5 text-start transition"
                             >
@@ -113,7 +114,7 @@
                                 type="button"
                                 x-on:click="value = @js($value)"
                                 :class="value === {{ Js::from($value) }}
-                                    ? 'border-accent-1/50 bg-accent-1/10 text-accent-1'
+                                    ? 'border-brand/50 bg-brand/10 text-brand'
                                     : 'border-zinc-900/8 text-zinc-700 hover:border-zinc-900/15 dark:border-white/8 dark:text-zinc-300 dark:hover:border-white/15'"
                                 class="rounded-full border px-3.5 py-1.5 text-sm transition active:scale-95"
                             >
@@ -129,7 +130,7 @@
             <button
                 type="button"
                 x-on:click="open = false"
-                class="w-full rounded-full bg-linear-to-r from-accent-1 via-accent-2 to-accent-3 py-2.5 text-sm font-medium text-white shadow-md shadow-accent-2/25 transition hover:shadow-lg active:scale-[0.98]"
+                class="w-full rounded-full bg-brand-gradient py-2.5 text-sm font-medium text-white shadow-md shadow-brand/25 transition hover:shadow-lg active:scale-[0.98]"
             >
                 {{ __('Done') }}
             </button>
