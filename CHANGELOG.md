@@ -7,7 +7,13 @@ reasoning behind them lives in `SESSION_LOG.md` and the commit messages.
 
 ## [Unreleased]
 
-Branch `feature/text-tools-chat-ui` — Phase 3 of the build plan.
+Branch `feature/auth-and-history` — Phase 4 of the build plan.
+
+### Added
+
+- **Accounts**: sign up, sign in, sign out, and password reset by email (Laravel Fortify, with our own pages). Sign-in attempts are limited to five a minute per email and IP. The sidebar shows the signed-in user, or "Sign in" and "Create a free account" to a visitor.
+
+Branch `feature/text-tools-chat-ui` (merged into `develop`) — Phase 3 of the build plan.
 
 ### Added
 

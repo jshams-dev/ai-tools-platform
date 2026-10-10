@@ -132,6 +132,21 @@
         }
     }
 
+    /* A single-line input on the sign-in pages; lights up like the message box. */
+    .field {
+        @apply block h-12 w-full rounded-2xl border border-zinc-900/10 bg-white px-4 text-[15px] shadow-xs transition-[box-shadow,border-color] duration-200 placeholder:text-zinc-400 focus:border-brand/50 focus:ring-4 focus:ring-brand/12 focus:outline-none dark:border-white/10 dark:bg-zinc-900 dark:placeholder:text-zinc-500;
+
+        &[aria-invalid='true'] {
+            @apply border-red-500/60 focus:ring-red-500/12;
+        }
+    }
+
+    .primary-button {
+        @apply bg-brand-gradient flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold text-white shadow-md shadow-brand/30 transition duration-200 hover:shadow-lg hover:shadow-brand/40 active:scale-[0.98];
+        background-size: 160% 160%;
+        animation: sheen 6s ease-in-out infinite;
+    }
+
     .send-button {
         @apply bg-brand-gradient grid size-9 shrink-0 place-items-center rounded-full text-white shadow-md shadow-brand/35 transition duration-200 hover:scale-110 hover:rotate-[-8deg] hover:shadow-lg active:scale-90;
         background-size: 160% 160%;
