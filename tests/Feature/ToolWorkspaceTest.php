@@ -301,6 +301,27 @@ final class ToolWorkspaceTest extends TestCase
     }
 
     #[Test]
+    public function a_guests_free_runs_come_back_a_day_after_the_first(): void
+    {
+        config(['tools.guest_runs_per_day' => 1]);
+        $this->fakeStream(['One.']);
+
+        $component = $this->workspace()->set('prompt', 'First')->call('send');
+        $this->respond($component);
+
+        $this->travel(23)->hours();
+        $component->set('prompt', 'Still today')->call('send')->assertSet('signInRequired', true);
+
+        $this->travel(1)->hours();
+        $this->workspace()
+            ->assertSee('1 free message left today.')
+            ->set('prompt', 'Next day')
+            ->call('send')
+            ->assertSet('signInRequired', false)
+            ->assertCount('messages', 2);
+    }
+
+    #[Test]
     public function the_unsent_message_is_back_in_the_box_after_signing_in(): void
     {
         config(['tools.guest_runs_per_day' => 0]);
