@@ -7,6 +7,36 @@ step — the things a fresh session cannot recover from the code or git history.
 
 ---
 
+## 2026-10-10 → 2026-10-11 — Phase 4 begins: accounts and the guest allowance
+
+**Branch:** `feature/auth-and-history` (from `develop`, after merging and pushing phase 3). 151 tests passing. Not yet pushed.
+
+### Done
+
+- Fortify: sign up, sign in, sign out, password reset, with our own Blade pages (`resources/views/auth`, `components/layouts/auth`). Two-factor, passkeys, and profile updates disabled until the profile page exists.
+- Guests get 3 free runs a day, metered in `ToolRunner` by IP hash; then a sign-in card in the chat. The unsent message is kept in the session and restored after sign-in (`url.intended` points back to the tool).
+- Signed-in users run under `RunContext::forUser` (free tier).
+- Theme switch uses a View Transition instead of transitioning every element.
+- `league/commonmark` 2.10.1 → 2.10.3 (security).
+
+### Decisions (and why)
+
+- **Guests may try, then sign in** — replaces "no guests". The user did not want visitors to land on a bare login page; modelled on ChatGPT, Copilot, Perplexity. Spec §18.1 updated.
+- **Fortify, not hand-rolled auth** — user's choice; we write only the pages.
+- **Guest allowance in `ToolRunner`, not the component** — so the future REST API inherits it.
+
+### Open
+
+- Signup and forgot-password POSTs have no throttle yet (only login does); spec §18.1 says they should.
+- `user/confirm-password` route exists without a view (unused while two-factor is off).
+- A test account exists in the local database: `test-user@example.test` / `a-long-password`.
+
+### Next step
+
+Free plan on signup (`plans`), then saved chat history (`conversations`, `conversation_messages`) in the sidebar.
+
+---
+
 ## 2026-10-08 → 2026-10-10 — Phase 3: chat workspace, database-driven AI, free models
 
 **Branch:** `feature/text-tools-chat-ui` (from `develop`; old `claude/ai-architecture-status-kzbf70` deleted locally and remotely). 141 tests passing. Not yet merged or pushed.
