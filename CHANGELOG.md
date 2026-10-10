@@ -14,6 +14,8 @@ Branch `feature/auth-and-history` — Phase 4 of the build plan.
 - **Accounts**: sign up, sign in, sign out, and password reset by email (Laravel Fortify, with our own pages). Sign-in attempts are limited to five a minute per email and IP. The sidebar shows the signed-in user, or "Sign in" and "Create a free account" to a visitor.
 - **Guests can try tools**: three free messages a day (`TOOLS_GUEST_RUNS_PER_DAY`), counted under the message box. After that a sign-in card appears in the chat, and the unsent message is back in the message box after signing in. A signed-in user's runs are logged under their account.
 
+- **JSON API for the coming Next.js frontend** (Laravel Sanctum, session-cookie sign-in on the same domain): `GET /api/v1/tools`, `GET /api/v1/tools/{slug}` (fields, starters, and the models the caller's tier may use — never prices or vendor ids), and `GET /api/v1/user`. Fortify's sign-in, sign-up and sign-out answer JSON to API clients.
+
 ### Fixed
 
 - Switching between light and dark is smooth instead of juddering.

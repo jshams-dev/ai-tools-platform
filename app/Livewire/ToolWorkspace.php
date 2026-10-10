@@ -302,29 +302,15 @@ final class ToolWorkspace extends Component
         ]);
     }
 
-    /**
-     * Who is running the tool: the signed-in user, or a guest by IP.
-     *
-     * Every signed-in user is on the free tier until plans exist.
-     */
     private function runContext(): RunContext
     {
-        $user = auth()->user();
-
-        return $user === null
-            ? RunContext::forGuest(
-                toolSlug: $this->slug,
-                policy: $this->tool->modelPolicy(),
-                ip: (string) request()->ip(),
-                requestedModel: $this->model,
-            )
-            : RunContext::forUser(
-                toolSlug: $this->slug,
-                policy: $this->tool->modelPolicy(),
-                user: $user,
-                ip: (string) request()->ip(),
-                requestedModel: $this->model,
-            );
+        return RunContext::forCaller(
+            toolSlug: $this->slug,
+            policy: $this->tool->modelPolicy(),
+            user: auth()->user(),
+            ip: (string) request()->ip(),
+            requestedModel: $this->model,
+        );
     }
 
     /**
