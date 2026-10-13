@@ -4,15 +4,11 @@ declare(strict_types=1);
 
 namespace App\Livewire;
 
-use App\AI\Exceptions\ContentRefusedException;
-use App\AI\Exceptions\SpendCapExceededException;
-use App\AI\Exceptions\UnsupportedCapabilityException;
 use App\AI\Results\ReasoningDelta;
-use App\Clients\Exceptions\HttpClientException;
 use App\Models\Tool;
 use App\Tools\Contracts\ToolInterface;
 use App\Tools\Exceptions\SignInRequiredException;
-use App\Tools\Exceptions\ToolRateLimitedException;
+use App\Tools\RunError;
 use App\Tools\Schema\Field;
 use App\Tools\ToolRegistry;
 use App\Tools\ToolRunner;
@@ -190,7 +186,7 @@ final class ToolWorkspace extends Component
         } catch (\Throwable $e) {
             // Whatever arrived before the failure is kept: the user has
             // already read it, and it disappearing would be stranger.
-            $this->messages[$index] = [...$reply, 'content' => $buffer, 'status' => 'failed', 'error' => $this->explain($e)];
+            $this->messages[$index] = [...$reply, 'content' => $buffer, 'status' => 'failed', 'error' => RunError::from($e)->message];
         }
     }
 
@@ -395,27 +391,5 @@ final class ToolWorkspace extends Component
         $last = end($this->messages);
 
         return $last !== false && $last['status'] === 'pending';
-    }
-
-    /**
-     * A message for the person, not the log. Anything unexpected is still
-     * reported, so a friendly sentence never hides a real bug.
-     */
-    private function explain(\Throwable $e): string
-    {
-        return match (true) {
-            $e instanceof ToolRateLimitedException => __("You're sending requests a little fast. Try again in :seconds seconds.", ['seconds' => $e->retryAfterSeconds]),
-            $e instanceof SpendCapExceededException => __('The platform has reached its usage limit for today. Please try again tomorrow.'),
-            $e instanceof ContentRefusedException => __('The model declined to answer this request.'),
-            $e instanceof HttpClientException, $e instanceof UnsupportedCapabilityException => $this->reportAndSay($e, __('The AI service is unavailable right now. Please try again in a moment.')),
-            default => $this->reportAndSay($e, __('Something went wrong. Please try again.')),
-        };
-    }
-
-    private function reportAndSay(\Throwable $e, string $message): string
-    {
-        report($e);
-
-        return $message;
     }
 }
