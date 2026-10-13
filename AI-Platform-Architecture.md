@@ -1079,7 +1079,7 @@ Ordered so that something demonstrable exists early. Running out of momentum bef
 | 1 ✅ | `BaseHttpClient` + `ServerSentEvents` + exception layer + `Capability` + capability interfaces + `AiRequest` + `ModelRegistry` + two real providers (`Anthropic` sync **and** stream, `DeepL` translation-only) + `ProviderFactory` + `config/ai.php` | AI core + transport |
 | 2 ✅ | `AiGateway` (sync + stream) + `AiResponseCache` + `ModelPolicy` + `ModelResolver` + `RunContext` + `usage_logs` + `UsageLogRepository` | Mediation layer |
 | 3 ✅ | `ToolRegistry` + `Field` schema + chat-style workspace (Livewire) + first tool (Text Transformer) + per-caller throttle + daily spend cap + providers/models/tools in the database + `OpenAiCompatibleProvider` with free models | 🎯 First working, demoable thing |
-| 4 ◐ | Accounts (Fortify) ✅ + guest allowance ✅ — then **the API**: Sanctum SPA auth, catalog endpoints, a tool-run endpoint that streams SSE | Laravel as an API |
+| 4 ◐ | Accounts (Fortify) ✅ + guest allowance ✅ — then **the API**: Sanctum SPA auth ✅, catalog endpoints ✅, a tool-run endpoint that streams SSE ✅ (`POST /api/v1/tools/{slug}/runs`: `thinking` / `text` / `done` / `error` events) | Laravel as an API |
 | 5 | **Next.js frontend** in `frontend/`: layout and theme, auth pages, homepage, tool page with the chat; Livewire and Blade UI removed | The new website, same features |
 | 6 | **Saved chat history per user, per tool** (`conversations`, `conversation_messages`) + `plans` + `usage_counters` + reserve/commit + per-user quotas | Business model |
 | 7 | General tools: Paraphrasing Tool, Summarizer, Grammar Checker (diff view), Email Writer (variant tabs) — replacing Text Transformer | Search traffic |

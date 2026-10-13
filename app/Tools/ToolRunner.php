@@ -140,13 +140,13 @@ final class ToolRunner
             return;
         }
 
-        $key = $this->guestKey($ctx);
-
-        if ($this->limiter->tooManyAttempts($key, $this->guestRunsPerDay)) {
+        // Not tooManyAttempts(): with no run on record it always says no, so
+        // an allowance of zero would still let one run through.
+        if ($this->guestRunsLeft($ctx) === 0) {
             throw new SignInRequiredException;
         }
 
-        $this->limiter->hit($key, 86400);
+        $this->limiter->hit($this->guestKey($ctx), 86400);
     }
 
     private function guestKey(RunContext $ctx): string
