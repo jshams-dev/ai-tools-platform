@@ -7,7 +7,7 @@ reasoning behind them lives in `SESSION_LOG.md` and the commit messages.
 
 ## [Unreleased]
 
-Branch `feature/auth-and-history` — Phase 4 of the build plan.
+Branch `feature/auth-and-history` (merged into `develop`) — Phase 4 of the build plan.
 
 ### Added
 

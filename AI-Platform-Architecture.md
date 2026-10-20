@@ -1079,7 +1079,7 @@ Ordered so that something demonstrable exists early. Running out of momentum bef
 | 1 ✅ | `BaseHttpClient` + `ServerSentEvents` + exception layer + `Capability` + capability interfaces + `AiRequest` + `ModelRegistry` + two real providers (`Anthropic` sync **and** stream, `DeepL` translation-only) + `ProviderFactory` + `config/ai.php` | AI core + transport |
 | 2 ✅ | `AiGateway` (sync + stream) + `AiResponseCache` + `ModelPolicy` + `ModelResolver` + `RunContext` + `usage_logs` + `UsageLogRepository` | Mediation layer |
 | 3 ✅ | `ToolRegistry` + `Field` schema + chat-style workspace (Livewire) + first tool (Text Transformer) + per-caller throttle + daily spend cap + providers/models/tools in the database + `OpenAiCompatibleProvider` with free models | 🎯 First working, demoable thing |
-| 4 ◐ | Accounts (Fortify) ✅ + guest allowance ✅ — then **the API**: Sanctum SPA auth ✅, catalog endpoints ✅, a tool-run endpoint that streams SSE ✅ (`POST /api/v1/tools/{slug}/runs`: `thinking` / `text` / `done` / `error` events) | Laravel as an API |
+| 4 ✅ | Accounts (Fortify) + guest allowance + per-IP limits on sign-up and reset links — then **the API**: Sanctum SPA auth, catalog endpoints, a tool-run endpoint that streams SSE (`POST /api/v1/tools/{slug}/runs`: `thinking` / `text` / `done` / `error` events) | Laravel as an API |
 | 5 | **Next.js frontend** in `frontend/`: layout and theme, auth pages, homepage, tool page with the chat; Livewire and Blade UI removed | The new website, same features |
 | 6 | **Saved chat history per user, per tool** (`conversations`, `conversation_messages`) + `plans` + `usage_counters` + reserve/commit + per-user quotas | Business model |
 | 7 | General tools: Paraphrasing Tool, Summarizer, Grammar Checker (diff view), Email Writer (variant tabs) — replacing Text Transformer | Search traffic |
@@ -1131,8 +1131,9 @@ These supersede the guest tier in §11.1 and the deferred `tool_runs` table in �
 - **Operational Awareness** — quota reservation with refund-on-failure, spend circuit breakers, abort detection on streams, Octane-safe design
 - **SEO** — server-rendered, registry-driven sitemap and structured data
 
-**Next step:** Phase 4 — the Laravel API: Sanctum SPA auth, catalog endpoints, and a streaming tool-run endpoint (§2, §18).
+**Next step:** Phase 5 — the Next.js frontend in `frontend/`, talking to the phase 4 API (§2, §14, §18).
 
-Phases 1–3 are complete: transport, the capability model, the gateway with caching,
+Phases 1–4 are complete: transport, the capability model, the gateway with caching,
 fallback and usage logging, the tool layer, a chat-style workspace, providers, models
-and tools in the database, and seven free models behind one OpenAI-compatible driver.
+and tools in the database, seven free models behind one OpenAI-compatible driver,
+accounts with a guest allowance, and the JSON + SSE API.
