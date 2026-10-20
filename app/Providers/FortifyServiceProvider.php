@@ -35,5 +35,12 @@ class FortifyServiceProvider extends ServiceProvider
 
             return Limit::perMinute(5)->by($throttleKey);
         });
+
+        // Fortify has no limiter setting for these two; routes/web.php attaches them.
+        RateLimiter::for('register', fn (Request $request) => Limit::perHour(10)->by($request->ip()));
+
+        // Fortify's password broker already allows one email per address a
+        // minute; this stops one IP spraying reset emails across addresses.
+        RateLimiter::for('password-email', fn (Request $request) => Limit::perHour(10)->by($request->ip()));
     }
 }

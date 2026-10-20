@@ -106,4 +106,44 @@ final class AuthenticationTest extends TestCase
 
         Notification::assertSentTo($user, ResetPassword::class);
     }
+
+    #[Test]
+    public function sign_ups_from_one_address_are_limited(): void
+    {
+        for ($i = 1; $i <= 10; $i++) {
+            $this->post(route('register.store'), [
+                'name' => "Sara {$i}",
+                'email' => "sara{$i}@example.com",
+                'password' => 'a-long-password',
+                'password_confirmation' => 'a-long-password',
+            ])->assertRedirect('/');
+
+            auth()->logout();
+        }
+
+        $this->post(route('register.store'), [
+            'name' => 'One too many',
+            'email' => 'eleven@example.com',
+            'password' => 'a-long-password',
+            'password_confirmation' => 'a-long-password',
+        ])->assertTooManyRequests();
+
+        $this->assertDatabaseMissing('users', ['email' => 'eleven@example.com']);
+    }
+
+    #[Test]
+    public function reset_link_requests_from_one_address_are_limited(): void
+    {
+        Notification::fake();
+
+        for ($i = 1; $i <= 10; $i++) {
+            $this->post(route('password.email'), ['email' => "nobody{$i}@example.com"])->assertRedirect();
+        }
+
+        $user = User::factory()->create();
+
+        $this->post(route('password.email'), ['email' => $user->email])->assertTooManyRequests();
+
+        Notification::assertNothingSent();
+    }
 }
