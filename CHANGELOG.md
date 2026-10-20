@@ -7,7 +7,27 @@ reasoning behind them lives in `SESSION_LOG.md` and the commit messages.
 
 ## [Unreleased]
 
-Branch `feature/text-tools-chat-ui` — Phase 3 of the build plan.
+Branch `feature/auth-and-history` (merged into `develop`) — Phase 4 of the build plan.
+
+### Added
+
+- **Accounts**: sign up, sign in, sign out, and password reset by email (Laravel Fortify, with our own pages). Sign-in attempts are limited to five a minute per email and IP; sign-ups and reset-link requests to ten an hour per IP. The sidebar shows the signed-in user, or "Sign in" and "Create a free account" to a visitor.
+- **Guests can try tools**: three free messages a day (`TOOLS_GUEST_RUNS_PER_DAY`), counted under the message box. After that a sign-in card appears in the chat, and the unsent message is back in the message box after signing in. A signed-in user's runs are logged under their account.
+
+- **JSON API for the coming Next.js frontend** (Laravel Sanctum, session-cookie sign-in on the same domain): `GET /api/v1/tools`, `GET /api/v1/tools/{slug}` (fields, starters, and the models the caller's tier may use — never prices or vendor ids), and `GET /api/v1/user`. Fortify's sign-in, sign-up and sign-out answer JSON to API clients.
+- **Run a tool through the API**: `POST /api/v1/tools/{slug}/runs` streams the answer as Server-Sent Events — `thinking`, `text`, then `done` (with the guest's remaining free runs) or `error`. A run that cannot start answers with a JSON error and a real status: 422 invalid input, 401 free runs used up, 429 too fast (with `Retry-After`), 503 no model available. Guests, the throttle, and the daily spend cap work exactly as in the chat.
+
+### Fixed
+
+- Setting `TOOLS_GUEST_RUNS_PER_DAY` to 0 still let a guest run a tool once.
+- Switching between light and dark is smooth instead of juddering.
+- The empty chat no longer cuts off its top when its content is taller than the screen.
+
+### Security
+
+- `league/commonmark` updated to 2.10.3 (two advisories, one high).
+
+Branch `feature/text-tools-chat-ui` (merged into `develop`) — Phase 3 of the build plan.
 
 ### Added
 

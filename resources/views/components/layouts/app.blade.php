@@ -8,31 +8,7 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>{{ $title ? $title.' · ' : '' }}{{ config('app.name') }}</title>
-    @if ($description)
-        <meta name="description" content="{{ $description }}">
-    @endif
-    <meta name="theme-color" content="#ffffff">
-
-    {{--
-        Applies the theme before anything paints. Without this, a dark-mode
-        user sees a white flash on every page load while the CSS and Alpine
-        catch up. Same rule as applyTheme() in app.js: a saved choice wins,
-        otherwise follow the OS.
-    --}}
-    <script>
-        (() => {
-            let mode = 'system';
-            try { mode = localStorage.getItem('theme') ?? 'system'; } catch {}
-            const dark = mode === 'dark' || (mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-            document.documentElement.classList.toggle('dark', dark);
-            document.querySelector('meta[name="theme-color"]').content = dark ? '#09090b' : '#ffffff';
-        })();
-    </script>
-
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('partials.head', ['title' => $title, 'description' => $description])
 </head>
 <body
     class="h-full bg-white text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100"
@@ -92,7 +68,16 @@
                 @endforeach
             </nav>
 
-            {{-- Profile: opens a menu. Profile and settings pages come with accounts. --}}
+            @guest
+                {{-- No guests (§18.1): a visitor sees the tools but signs in to use them. --}}
+                <div class="mt-auto flex flex-col gap-2 px-1 pb-1">
+                    <a href="{{ route('login') }}" class="primary-button h-11 text-sm">{{ __('Sign in') }}</a>
+                    <a href="{{ route('register') }}" class="rounded-xl py-2 text-center text-sm font-medium text-zinc-600 transition hover:bg-zinc-900/4 dark:text-zinc-300 dark:hover:bg-white/5">{{ __('Create a free account') }}</a>
+                </div>
+            @endguest
+
+            @auth
+            {{-- Profile: opens a menu. Profile and settings pages come later in phase 4. --}}
             <div x-data="{ open: false }" x-on:keydown.escape.stop="open = false" class="relative mt-auto">
                 <div
                     x-cloak
@@ -132,6 +117,15 @@
                             </button>
                         @endforeach
                     </div>
+
+                    <div class="my-1.5 border-t border-zinc-900/5 dark:border-white/5"></div>
+
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button type="submit" class="menu-item">
+                            <span class="flex items-center gap-2.5"><x-icon name="logout" class="size-4.5" />{{ __('Sign out') }}</span>
+                        </button>
+                    </form>
                 </div>
 
                 <button
@@ -140,14 +134,15 @@
                     :aria-expanded="open"
                     class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start transition hover:bg-zinc-900/4 dark:hover:bg-white/5"
                 >
-                    <span class="grid size-8 place-items-center rounded-full bg-linear-to-br from-zinc-200 to-zinc-300 text-xs font-semibold text-zinc-600 dark:from-zinc-700 dark:to-zinc-800 dark:text-zinc-200">G</span>
+                    <span class="grid size-8 place-items-center rounded-full bg-linear-to-br from-zinc-200 to-zinc-300 text-xs font-semibold text-zinc-600 dark:from-zinc-700 dark:to-zinc-800 dark:text-zinc-200">{{ Str::upper(Str::substr(auth()->user()->name, 0, 1)) }}</span>
                     <span class="min-w-0 flex-1 leading-tight">
-                        <span class="block text-sm font-medium">{{ __('Guest') }}</span>
+                        <span class="block truncate text-sm font-medium">{{ auth()->user()->name }}</span>
                         <span class="block text-xs text-zinc-500">{{ __('Free plan') }}</span>
                     </span>
                     <x-icon name="chevron-up-down" class="size-4 text-zinc-400" />
                 </button>
             </div>
+            @endauth
         </aside>
 
         <main class="flex min-w-0 flex-1 flex-col">

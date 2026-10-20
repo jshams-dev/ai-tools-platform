@@ -40,16 +40,35 @@ function readTheme() {
     }
 }
 
+/**
+ * Switches the theme with a cross-fade.
+ *
+ * A View Transition snapshots the page before and after and fades the two
+ * images on the GPU. Transitioning every element's colours instead (the old
+ * approach) repainted hundreds of elements, blurred backdrop included, on
+ * every frame — visibly juddery. Without View Transitions, or with reduced
+ * motion, the theme simply snaps.
+ */
 function applyTheme(mode) {
     const dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     const root = document.documentElement;
 
-    // Cross-fade colours for the switch only, so normal hovers stay snappy.
-    root.classList.add('theme-transition');
-    setTimeout(() => root.classList.remove('theme-transition'), 400);
+    if (root.classList.contains('dark') === dark) {
+        return;
+    }
 
-    root.classList.toggle('dark', dark);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#09090b' : '#ffffff');
+    const swap = () => {
+        root.classList.toggle('dark', dark);
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#09090b' : '#ffffff');
+    };
+
+    if (!document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        swap();
+
+        return;
+    }
+
+    document.startViewTransition(swap);
 }
 
 document.addEventListener('alpine:init', () => {

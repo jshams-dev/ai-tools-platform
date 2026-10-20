@@ -82,14 +82,6 @@
     ::selection {
         background: color-mix(in oklch, var(--color-brand) 22%, transparent);
     }
-
-    /* Switching theme cross-fades instead of snapping (see applyTheme()). */
-    html.theme-transition,
-    html.theme-transition *,
-    html.theme-transition *::before,
-    html.theme-transition *::after {
-        transition: background-color 0.35s ease, border-color 0.35s ease, color 0.35s ease, box-shadow 0.35s ease !important;
-    }
 }
 
 @layer components {
@@ -130,6 +122,21 @@
                 0 0 0 4px color-mix(in oklch, var(--color-brand) 12%, transparent),
                 0 16px 40px -14px color-mix(in oklch, var(--color-brand) 45%, transparent);
         }
+    }
+
+    /* A single-line input on the sign-in pages; lights up like the message box. */
+    .field {
+        @apply block h-12 w-full rounded-2xl border border-zinc-900/10 bg-white px-4 text-[15px] shadow-xs transition-[box-shadow,border-color] duration-200 placeholder:text-zinc-400 focus:border-brand/50 focus:ring-4 focus:ring-brand/12 focus:outline-none dark:border-white/10 dark:bg-zinc-900 dark:placeholder:text-zinc-500;
+
+        &[aria-invalid='true'] {
+            @apply border-red-500/60 focus:ring-red-500/12;
+        }
+    }
+
+    .primary-button {
+        @apply bg-brand-gradient flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold text-white shadow-md shadow-brand/30 transition duration-200 hover:shadow-lg hover:shadow-brand/40 active:scale-[0.98];
+        background-size: 160% 160%;
+        animation: sheen 6s ease-in-out infinite;
     }
 
     .send-button {
@@ -261,6 +268,13 @@
 
 @keyframes spin {
     to { transform: rotate(1turn); }
+}
+
+/* The theme switch (applyTheme()): a quick fade between two snapshots. */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 0.25s;
+    animation-timing-function: ease-out;
 }
 
 /* Motion is a nicety. Anyone who has asked their OS for less gets none. */

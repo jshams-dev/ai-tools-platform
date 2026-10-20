@@ -7,6 +7,68 @@ step — the things a fresh session cannot recover from the code or git history.
 
 ---
 
+## 2026-10-11 → 2026-10-20 — Phase 4 done: the API
+
+**Branch:** `feature/auth-and-history`, merged into `develop`. 167 tests passing.
+
+### Done
+
+- Spec v6 (written 2026-10-10, not logged then): product definition, Next.js frontend over a Laravel JSON + SSE API, phases re-planned (§0, §2, §18).
+- Sanctum SPA auth and the catalog endpoints (`/api/v1/tools`, `/api/v1/tools/{slug}`, `/api/v1/user`).
+- `RunError`: the exception → message mapping moved out of `ToolWorkspace`, with a stable code and HTTP status, shared by the chat and the API.
+- `POST /api/v1/tools/{slug}/runs` streams `thinking` / `text` / `done` / `error` events. Checked end to end with curl against Groq.
+- Sign-up and reset-link requests limited to 10 an hour per IP.
+- Fix: a guest allowance of 0 still let one run through (`tooManyAttempts()` is false when nothing is on record).
+
+### Decisions (and why)
+
+- **The run endpoint advances the generator to its first fragment before responding.** Validation, allowance, throttle and the fallback chain then fail with a real status (422 / 401 / 429 / 503) instead of a 200 with an error event; the cost is that headers wait for the first token.
+- **Stream data is JSON-encoded plain text, not escaped HTML.** The Next.js client renders it as text; `e()` stays a Livewire concern.
+- **Validation errors are keyed by field name** (`text`, `mode`), not `input.text`, so the client maps them straight onto its fields.
+- **Sign-up / reset throttles redefine Fortify's POST routes in `routes/web.php`** — Fortify has no limiter setting for them, and patching routes at boot would not survive `route:cache`.
+
+### Open
+
+- `user/confirm-password` route still has no view (unused while two-factor is off).
+- Dependabot opened a branch on GitHub bumping `shivammathur/setup-php` in the CI workflow; not reviewed.
+- The test account `test-user@example.test` / `a-long-password` is still in the local database.
+
+### Next step
+
+Phase 5: the Next.js app in `frontend/` — start outside-in with the tool page's chat calling the run endpoint, then layout, theme and auth pages.
+
+---
+
+## 2026-10-10 → 2026-10-11 — Phase 4 begins: accounts and the guest allowance
+
+**Branch:** `feature/auth-and-history` (from `develop`, after merging and pushing phase 3). 151 tests passing. Not yet pushed.
+
+### Done
+
+- Fortify: sign up, sign in, sign out, password reset, with our own Blade pages (`resources/views/auth`, `components/layouts/auth`). Two-factor, passkeys, and profile updates disabled until the profile page exists.
+- Guests get 3 free runs a day, metered in `ToolRunner` by IP hash; then a sign-in card in the chat. The unsent message is kept in the session and restored after sign-in (`url.intended` points back to the tool).
+- Signed-in users run under `RunContext::forUser` (free tier).
+- Theme switch uses a View Transition instead of transitioning every element.
+- `league/commonmark` 2.10.1 → 2.10.3 (security).
+
+### Decisions (and why)
+
+- **Guests may try, then sign in** — replaces "no guests". The user did not want visitors to land on a bare login page; modelled on ChatGPT, Copilot, Perplexity. Spec §18.1 updated.
+- **Fortify, not hand-rolled auth** — user's choice; we write only the pages.
+- **Guest allowance in `ToolRunner`, not the component** — so the future REST API inherits it.
+
+### Open
+
+- Signup and forgot-password POSTs have no throttle yet (only login does); spec §18.1 says they should.
+- `user/confirm-password` route exists without a view (unused while two-factor is off).
+- A test account exists in the local database: `test-user@example.test` / `a-long-password`.
+
+### Next step
+
+Free plan on signup (`plans`), then saved chat history (`conversations`, `conversation_messages`) in the sidebar.
+
+---
+
 ## 2026-10-08 → 2026-10-10 — Phase 3: chat workspace, database-driven AI, free models
 
 **Branch:** `feature/text-tools-chat-ui` (from `develop`; old `claude/ai-architecture-status-kzbf70` deleted locally and remotely). 141 tests passing. Not yet merged or pushed.

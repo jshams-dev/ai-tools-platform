@@ -79,6 +79,30 @@ final readonly class RunContext
     }
 
     /**
+     * The context for whoever is calling: a signed-in user, or a guest by IP.
+     */
+    public static function forCaller(
+        string $toolSlug,
+        ModelPolicy $policy,
+        ?User $user,
+        string $ip,
+        ?string $requestedModel = null,
+    ): self {
+        return $user === null
+            ? self::forGuest($toolSlug, $policy, $ip, $requestedModel)
+            : self::forUser($toolSlug, $policy, $user, $ip, self::tierFor($user), $requestedModel);
+    }
+
+    /**
+     * The tier a caller runs under. Every account is on the free tier until
+     * plans exist (phase 6).
+     */
+    public static function tierFor(?User $user): string
+    {
+        return $user === null ? self::TIER_GUEST : self::TIER_FREE;
+    }
+
+    /**
      * Hash an IP address with the app key as a pepper.
      *
      * Stored instead of the raw address for two reasons: the logs stop being
