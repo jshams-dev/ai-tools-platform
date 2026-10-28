@@ -4,133 +4,104 @@ declare(strict_types=1);
 
 use App\AI\Providers\AnthropicProvider;
 use App\AI\Providers\DeepLProvider;
+use App\AI\Providers\OpenAiCompatibleProvider;
 
 return [
 
     /*
     |--------------------------------------------------------------------------
-    | Providers
+    | Drivers
     |--------------------------------------------------------------------------
     |
-    | One entry per vendor. A provider row cannot exist without a PHP class to
-    | back it, which is exactly why this lives in config rather than a database
-    | table: inserting ('mistral', 'Mistral AI') into a table would create a
-    | row that nothing can execute.
+    | Providers and models live in the database (ai_providers, ai_models), so
+    | they can be added and edited without a deploy. What a database row cannot
+    | hold is code: each provider row names one of these driver keys, and this
+    | map is the only place a key becomes a class.
     |
-    | base_url and proxy are configurable per vendor so that egress can be
-    | re-pointed — at a relay, a regional endpoint, or a local mock — without
-    | editing a single provider class.
+    | A short key rather than a class name in the table is deliberate — a class
+    | name in a table is one admin form away from instantiating anything.
     |
     */
 
-    'providers' => [
-
-        'anthropic' => [
-            'driver' => AnthropicProvider::class,
-            'key' => env('ANTHROPIC_API_KEY'),
-            'base_url' => env('ANTHROPIC_BASE_URL', 'https://api.anthropic.com'),
-            'proxy' => env('ANTHROPIC_PROXY', env('AI_HTTP_PROXY')),
-            'version' => '2023-06-01',
-        ],
-
-        'deepl' => [
-            'driver' => DeepLProvider::class,
-            'key' => env('DEEPL_API_KEY'),
-            'base_url' => env('DEEPL_BASE_URL', 'https://api-free.deepl.com'),
-            'proxy' => env('DEEPL_PROXY', env('AI_HTTP_PROXY')),
-        ],
-
+    'drivers' => [
+        'openai_compatible' => OpenAiCompatibleProvider::class,
+        'anthropic' => AnthropicProvider::class,
+        'deepl' => DeepLProvider::class,
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Models
+    | Credentials
     |--------------------------------------------------------------------------
     |
-    | The shape here deliberately mirrors the future `ai_models` table, so that
-    | moving this into a database once an admin panel exists is a mechanical
-    | migration rather than a redesign.
+    | API keys by provider slug. Secrets stay in .env and never reach the
+    | database or git. A new provider row needs one line here and one in .env.
     |
-    | Two fields earn their keep:
-    |
-    |   api_id  The vendor's own identifier, kept separate from our key. When a
-    |           vendor retires a model, one line here changes instead of every
-    |           tool that named it.
-    |
-    |   tier    Where "free" lives. Whether a model is cheap is a property of
-    |           the model, never of the provider class — which is why there is
-    |           no FreeProvider anywhere in this codebase.
-    |
-    | Vendor model identifiers change often. Treat the values below as current
-    | at the time of writing and check the vendor's docs before relying on one.
+    | Read through config rather than env() at runtime: once config is cached,
+    | env() outside a config file returns null.
     |
     */
 
-    'models' => [
-
-        'claude-haiku' => [
-            'provider' => 'anthropic',
-            'api_id' => 'claude-haiku-4-5',
-            'capabilities' => ['text_generation'],
-            'tier' => 'free',
-            'streaming' => true,
-            'sampling' => true,
-            'max_output_tokens' => 8192,
-            'cost' => ['input' => 1.00, 'output' => 5.00],   // USD per 1M tokens
-        ],
-
-        'claude-sonnet' => [
-            'provider' => 'anthropic',
-            'api_id' => 'claude-sonnet-5',
-            'capabilities' => ['text_generation'],
-            'tier' => 'pro',
-            'streaming' => true,
-            // Rejects temperature with a 400 — see AnthropicProvider::payload().
-            'sampling' => false,
-            'max_output_tokens' => 64000,
-            'cost' => ['input' => 2.00, 'output' => 10.00],
-        ],
-
-        'claude-opus' => [
-            'provider' => 'anthropic',
-            'api_id' => 'claude-opus-5',
-            'capabilities' => ['text_generation'],
-            'tier' => 'pro',
-            'streaming' => true,
-            'sampling' => false,
-            'max_output_tokens' => 64000,
-            'cost' => ['input' => 5.00, 'output' => 25.00],
-        ],
-
-        // Proves the point of capability segregation: this model serves only
-        // translation, and no amount of prompting will make it generate text.
-        'deepl' => [
-            'provider' => 'deepl',
-            'api_id' => 'v2',
-            'capabilities' => ['translation'],
-            'tier' => 'free',
-            'streaming' => false,
-            // DeepL bills per character, not per token, so token pricing does
-            // not apply. TokenUsage reports null rather than a misleading 0.
-            'cost' => ['input' => 0.0, 'output' => 0.0],
-        ],
-
+    'credentials' => [
+        'groq' => env('GROQ_API_KEY'),
+        'gemini' => env('GEMINI_API_KEY'),
+        'openrouter' => env('OPENROUTER_API_KEY'),
+        'anthropic' => env('ANTHROPIC_API_KEY'),
+        'deepl' => env('DEEPL_API_KEY'),
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Defaults
+    | Egress proxy
     |--------------------------------------------------------------------------
     |
-    | Used when nothing higher up the chain expresses a preference. Once tools
-    | exist, a tool's ModelPolicy and the user's tier both take precedence over
-    | this — see §8.1 of the architecture specification.
+    | Used for every provider whose row does not set its own proxy, so all
+    | vendor traffic can be routed through a relay with one setting.
     |
     */
 
-    'defaults' => [
-        'text_generation' => env('AI_DEFAULT_TEXT_MODEL', 'claude-haiku'),
-        'translation' => 'deepl',
+    'proxy' => env('AI_HTTP_PROXY'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Response cache
+    |--------------------------------------------------------------------------
+    |
+    | An identical call should not be paid for twice. The store is named
+    | explicitly rather than inherited from the default: AI results are large
+    | and long-lived, and sharing a store with sessions means one flush takes
+    | out both.
+    |
+    | Note that this reads CACHE_STORE rather than calling config('cache.default') —
+    | config files are loaded before any of them can read another, so that call
+    | would resolve to null here.
+    |
+    */
+
+    'cache' => [
+        'store' => env('AI_CACHE_STORE', env('CACHE_STORE', 'database')),
+        'ttl' => (int) env('AI_CACHE_TTL', 86400),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Daily spend cap
+    |--------------------------------------------------------------------------
+    |
+    | Platform-owned keys behind a public page are an open door to our own
+    | credit card. Once today's recorded spend reaches this ceiling, the gateway
+    | refuses every call that would reach a vendor — cached answers are still
+    | served, since they cost nothing.
+    |
+    | The total is read from usage_logs and cached for `recompute_seconds`, so
+    | the cap can be overshot by at most one window's worth of traffic. The
+    | vendor-side limit in each provider's dashboard is the backstop for that.
+    |
+    */
+
+    'spend' => [
+        'daily_cap_usd' => (float) env('AI_DAILY_SPEND_CAP_USD', 5.0),
+        'recompute_seconds' => (int) env('AI_SPEND_RECOMPUTE_SECONDS', 60),
     ],
 
     /*
@@ -145,6 +116,9 @@ return [
         // Streams stay open far longer than a normal call, so they get their
         // own ceiling rather than forcing the sync timeout up for everyone.
         'stream_timeout' => (int) env('AI_STREAM_TIMEOUT', 300),
+
+        // ...but a stream that goes silent for this long is treated as dead.
+        'stream_idle_timeout' => (int) env('AI_STREAM_IDLE_TIMEOUT', 30),
 
         // Total attempts: 3 means one try plus two retries. Applies to
         // transport failures only (connection reset, 429, 5xx).

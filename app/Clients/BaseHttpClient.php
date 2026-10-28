@@ -52,6 +52,12 @@ class BaseHttpClient
         protected readonly int $streamTimeout = 300,
         protected readonly int $maxAttempts = 3,
         protected readonly int $baseBackoffMs = 500,
+        /**
+         * Seconds a stream may go silent before it counts as stalled. The
+         * total stream timeout is long on purpose, so without this a vendor
+         * that stops sending would hold the request open for minutes.
+         */
+        protected readonly int $streamIdleTimeout = 30,
     ) {}
 
     /**
@@ -108,14 +114,23 @@ class BaseHttpClient
         $response = $this->attempt(
             fn (): Response => $this->request($headers)
                 ->timeout($this->streamTimeout)
-                ->withOptions(['stream' => true])
+                ->withOptions(['stream' => true, 'read_timeout' => $this->streamIdleTimeout])
                 ->send($method, $this->url($path), ['json' => $payload])
         );
 
         $body = $response->toPsrResponse()->getBody();
 
         while (! $body->eof()) {
-            $chunk = $body->read(8192);
+            try {
+                $chunk = $body->read(8192);
+            } catch (\RuntimeException $e) {
+                // A read that exceeds read_timeout surfaces as a bare
+                // RuntimeException; give it the transport type it deserves.
+                throw new TimeoutException(
+                    "Stream from {$this->baseUrl} stalled: no data for {$this->streamIdleTimeout} seconds.",
+                    previous: $e,
+                );
+            }
 
             if ($chunk === '') {
                 // A non-eof empty read means the socket has nothing yet.

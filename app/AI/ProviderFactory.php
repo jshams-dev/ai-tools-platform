@@ -104,7 +104,7 @@ final class ProviderFactory
         }
 
         $config = $this->providers[$name] ?? throw new UnknownModelException(
-            "No provider registered under '{$name}'. Check the 'providers' map in config/ai.php."
+            "No provider registered under '{$name}'. Check the ai_providers table (is it seeded and active?)."
         );
 
         /** @var class-string<AiProvider> $driver */
@@ -136,6 +136,7 @@ final class ProviderFactory
             streamTimeout: (int) ($this->http['stream_timeout'] ?? 300),
             maxAttempts: (int) ($this->http['max_attempts'] ?? 3),
             baseBackoffMs: (int) ($this->http['base_backoff_ms'] ?? 500),
+            streamIdleTimeout: (int) ($this->http['stream_idle_timeout'] ?? 30),
         );
     }
 }

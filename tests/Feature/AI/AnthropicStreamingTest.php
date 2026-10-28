@@ -10,10 +10,13 @@ use App\AI\ModelRegistry;
 use App\AI\ProviderFactory;
 use App\AI\Requests\TextGenerationRequest;
 use App\AI\ResolvedModel;
+use App\AI\Results\ReasoningDelta;
 use App\AI\Results\TextResult;
+use App\Clients\Exceptions\BadRequestException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Concerns\SeedsAiCatalog;
 use Tests\TestCase;
 
 /**
@@ -26,6 +29,8 @@ use Tests\TestCase;
  */
 final class AnthropicStreamingTest extends TestCase
 {
+    use SeedsAiCatalog;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -34,8 +39,8 @@ final class AnthropicStreamingTest extends TestCase
         // collapses to whitespace and the header assertions stop meaning
         // anything, which would hide a genuine auth-header bug.
         config([
-            'ai.providers.anthropic.key' => 'sk-ant-test-key',
-            'ai.providers.deepl.key' => 'deepl-test-key',
+            'ai.credentials.anthropic' => 'sk-ant-test-key',
+            'ai.credentials.deepl' => 'deepl-test-key',
         ]);
     }
 
@@ -173,7 +178,23 @@ final class AnthropicStreamingTest extends TestCase
     }
 
     #[Test]
-    public function it_ignores_thinking_deltas(): void
+    public function a_rejected_stream_carries_the_vendors_explanation(): void
+    {
+        Http::fake(['api.anthropic.com/*' => Http::response(
+            ['type' => 'error', 'error' => ['message' => 'max_tokens: 999999 > 64000']],
+            400,
+        )]);
+
+        // The request is only sent on the first read of the stream, so error
+        // translation must wrap the iteration, not the call that creates it.
+        $this->expectException(BadRequestException::class);
+        $this->expectExceptionMessage('Anthropic: max_tokens: 999999 > 64000');
+
+        iterator_to_array($this->provider()->streamText(new TextGenerationRequest(userPrompt: 'Hi'), $this->model()));
+    }
+
+    #[Test]
+    public function thinking_deltas_are_passed_on_separately_and_never_join_the_answer(): void
     {
         // Thinking models emit thinking_delta on the same event type. Treating
         // every delta as output would splice reasoning into the answer.
@@ -184,11 +205,10 @@ final class AnthropicStreamingTest extends TestCase
             'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Answer"}}'."\n\n",
         ]))]);
 
-        $fragments = iterator_to_array($this->provider()->streamText(
-            new TextGenerationRequest(userPrompt: 'Think.'),
-            $this->model(),
-        ), preserve_keys: false);
+        $stream = $this->provider()->streamText(new TextGenerationRequest(userPrompt: 'Think.'), $this->model());
+        $fragments = iterator_to_array($stream, preserve_keys: false);
 
-        $this->assertSame(['Answer'], $fragments);
+        $this->assertEquals([new ReasoningDelta('hmm'), 'Answer'], $fragments);
+        $this->assertSame('Answer', $stream->getReturn()->text);
     }
 }

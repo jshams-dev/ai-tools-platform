@@ -1,11 +1,18 @@
 # AI Tools Platform — Architecture Specification
 
-**Version 5**
-Laravel · Capability-Based AI Layer · Livewire UI + REST API · Streaming · Usage Quotas
+**Version 6**
+Laravel API · Next.js frontend · Capability-Based AI Layer · Streaming · Usage Quotas
 
-> **Status:** Phase 1 is built and tested. This revision folds the implementation
-> back into the specification — every change below came from writing the code and
-> finding that the v4 text did not survive contact with a compiler.
+> **v6 (2026-10-11): the product is defined and the frontend changes.** §0 is new: the
+> audience, the seven v1 tools and why each exists, and the page map. The web UI moves
+> from Livewire to **Next.js**, which talks to Laravel only through its JSON API; both
+> run on one server behind one domain (§2, §14). Everything below the entry point —
+> tools, gateway, providers, quotas — is unchanged. Phases are re-planned (§18).
+
+> **Status:** Phases 1 and 2 are built and tested (116 tests). This revision folds
+> the implementation back into the specification — every change below came from
+> writing the code and finding that the v4 text did not survive contact with a
+> compiler.
 >
 > | Corrected in v5 | Why |
 > |---|---|
@@ -18,6 +25,66 @@ Laravel · Capability-Based AI Layer · Livewire UI + REST API · Streaming · U
 > | `Capability::Vision` → `VisionAnalysis` | The enum case and the interface name collided |
 > | Spend guards move to Phase 3 (§18) | v4 shipped a public tool in Phase 3 but the cost circuit breaker in Phase 4 |
 > | Sampling parameters are a model property (§8) | Newer reasoning models reject `temperature` with a 400 rather than ignoring it |
+
+---
+
+## 0. Product
+
+### 0.1 Who it is for
+
+**English-speaking users, worldwide.** Two audiences, one site:
+
+- **Anyone who writes** — students, office workers, non-native speakers — arriving from Google with a specific job ("paraphrase this", "summarize this").
+- **Hotels, short-term rentals and the people who run their listings** — a specialist audience with repeat work and few good tools.
+
+The general tools bring traffic; the specialist tools are the reason this site is not interchangeable with every other AI text site. The project is both a real product and a portfolio piece: it is built to product standards, and the architecture is meant to be read.
+
+### 0.2 What earns a tool its place
+
+A chat box with a prompt behind it is not a product — the user can get that from ChatGPT directly. A tool ships only if it has at least two of:
+
+1. **A searched-for name.** People type exactly this into Google ("paraphrasing tool", "hotel description generator"), so its page can rank.
+2. **Input or output a chat does not give.** A highlighted diff, several variants side by side, a table with a CSV download, a channel's character limit enforced.
+3. **Repeat use.** The same person comes back weekly with the same kind of job.
+
+### 0.3 The v1 tools
+
+**General — for search traffic.** These replace Text Transformer, which was the phase-3 proof of the pipeline: its handler becomes the shared engine behind focused tools, each with its own page, defaults and SEO content.
+
+| Tool | Input | Output | Why it earns its place |
+|---|---|---|---|
+| **Paraphrasing Tool** — featured on the homepage | Text; mode (standard, fluent, formal, simple, creative, shorter) | The rewrite, with a toggle to highlight what changed | The highest-volume writing query; the diff is what a chat lacks |
+| **Summarizer** | Text; length (short, medium, long); format (paragraph, bullets) | The summary | High volume; length and format are one tap, not a re-prompt |
+| **Grammar Checker** | Text; English variant (US, UK) | The corrected text with every change highlighted, and nothing changed except errors | High volume; the highlighted diff *is* the product |
+| **Email Writer** | What the email must say; tone; length | Three variants as tabs | Repeat use; three options instead of one guess |
+
+**Specialist — hospitality.** The original problem this platform was designed around: properties publishing duplicate, low-quality listing copy that ranks badly and converts worse.
+
+| Tool | Input | Output | Why it earns its place |
+|---|---|---|---|
+| **Hotel Description Generator** | Property facts; property type; channel (website, Booking.com, Airbnb, Expedia); tone; language | A unique description within that channel's length limit, with a live character count | Searched for by owners; the per-channel limit is real domain knowledge |
+| **Review Reply Generator** | The guest review; property name and signature; tone | A reply that addresses each point the guest raised, careful with negative reviews | Hoteliers answer dozens of reviews a week — the strongest repeat use |
+| **Room Name Normalizer** | A list of room names, one per line | A table: original name → standard room type, bed type, view, max occupancy; CSV download | No chat does this well; rules handle the common names, AI only the rest (`RuleBasedClassifier` → AI fallback), so most rows cost nothing |
+
+Every tool keeps the chat workspace (§18.1) — a message box, settings pills, a conversation saved per user and per tool. What differs is how a reply is **shown**: plain Markdown by default, or a tool-specific view (diff, variant tabs, table). `component()` on the definition names that view.
+
+DeepL (already integrated) backs translation inside the Hotel Description Generator's language option. A standalone translator is not in v1: it fails rule 2 against Google Translate and DeepL's own site.
+
+### 0.4 Pages
+
+| Path | What it is |
+|---|---|
+| `/` | A working tool above the fold (Paraphrasing Tool), then the tool grid, why us, FAQ |
+| `/tools` | Every tool, grouped by category |
+| `/tools/category/{category}` | One category: Writing, Hospitality |
+| `/tools/{slug}` | The tool, live at the top; below it the content: how it works, use cases, FAQ, related tools |
+| `/pricing` | Free and Pro plans (§11) |
+| `/about`, `/contact` | Who runs this and how to reach them |
+| `/privacy`, `/terms` | Required before launch: we process user text with third-party AI vendors |
+| `/login`, `/register`, `/forgot-password`, `/reset-password/{token}` | Accounts (§18.1) |
+| `/blog` | Later: content marketing, one article per real use case |
+
+SEO, on every public page: server-rendered HTML, a unique title and description, canonical URL, Open Graph image, `sitemap.xml` and `robots.txt` built from the tool catalog, and JSON-LD — `SoftwareApplication` and `FAQPage` on tool pages, `BreadcrumbList` everywhere below the homepage.
 
 ---
 
@@ -44,32 +111,38 @@ No change to `AiGateway`, caching, quota, or logging in any of the three cases. 
 
 ---
 
-## 2. Dual Entry Points — One Service Layer
+## 2. One API, Two Kinds of Client
 
-The system exposes **two independent entry points** that both consume the same tool layer. Neither one calls the other.
+Laravel exposes **one HTTP API**. Everything outside it — including our own website — is a client of that API.
 
 ```
-                    +--> Livewire Component --+
-                    |    (main web UI)        |
-  Browser / Client -+                         +--> TOOL HANDLER --> AI GATEWAY
-                    |                         |
-                    +--> API Controller ------+
-                         (REST v1, token-guarded)
+                       same domain, one server
+  Browser ──> Next.js (pages, SSR) ──fetch──+
+                                            +──> Laravel API ──> TOOL HANDLER ──> AI GATEWAY
+  Third party (API key) ────────────────────+      JSON + SSE
 ```
 
-**Critical rule:** Livewire must **never** make an HTTP call to our own REST API. Both run in the same process; Livewire calls the handler directly. An internal HTTP round-trip would add latency and complexity for nothing.
+- **Our website** is a Next.js app. Its server components fetch catalog and content data from the API to render pages for SEO; its client components call the API from the browser to run tools and stream replies. It authenticates with a **session cookie** (Laravel Sanctum, SPA mode): the browser never holds a token.
+- **Third parties** (phase 10) use the same endpoints with an API key.
 
-**Why this works:** because business logic lives below the entry points, any number of "front doors" can be added without duplicating logic. This is the direct payoff of layered architecture — and the single best argument the codebase makes for itself.
+**Critical rule:** controllers only translate HTTP to the tool layer and back — validate, call `ToolRunner`, return JSON or a stream. No business logic in a controller, and nothing in the tool layer knows HTTP exists. That is what lets one service layer serve every client.
+
+**Why one domain matters.** With Next.js and Laravel behind the same origin (a reverse proxy routes `/api` and `/sanctum` to Laravel, everything else to Next.js), the session cookie is first-party, there is no CORS, and CSRF protection works as Laravel intends. In development, Next.js rewrites `/api/*` to `php artisan serve` for the same effect.
 
 ---
 
 ## 3. Full Layer Overview
 
 ```
-  Blade + Livewire            REST API v1 (token)
-  (main UI, SEO, wire:stream)  (JSON + SSE)
+  Next.js (our website)       third parties (phase 10)
+  session cookie               API key
         |                            |
         +------------+---------------+
+                     v
+        +-------------------------------+
+        |   Laravel API — JSON + SSE    |
+        |   controllers: HTTP in/out    |
+        +-------------------------------+
                      v
         +-------------------------------+
         |   TOOL LAYER                  |
@@ -126,7 +199,7 @@ interface ToolInterface
     public function handler(): string;           // class-string, resolved from container
     public function modelPolicy(): ModelPolicy;
     public function costUnits(): int;            // base weight, see §11
-    public function component(): ?string;        // custom Livewire component, or null
+    public function component(): ?string;        // frontend result view ('diff', 'variants', 'table'), or null for Markdown
 }
 ```
 
@@ -149,9 +222,9 @@ public function inputSchema(): array
 }
 ```
 
-One declaration, **four consumers**: the Livewire form renderer, web validation rules, REST API validation, and generated API docs. This is the entire justification for the registry — without it, the schema is just metadata nobody reads.
+One declaration, **three consumers**: the frontend (the API returns the schema, and the chat draws the message box and settings pills from it), server-side validation in `ToolRunner`, and generated API docs. This is the entire justification for the registry — without it, the schema is just metadata nobody reads.
 
-**The escape hatch matters as much as the schema.** `component()` lets a tool supply its own Livewire component when the generic renderer isn't enough. Without it, every slightly-unusual tool pressures the generic renderer into becoming a full form-builder framework. That road ends badly. The renderer stays simple *because* there is a way around it.
+**The escape hatch matters as much as the schema.** `component()` lets a tool name its own result view in the frontend when Markdown isn't enough. Without it, every slightly-unusual tool pressures the generic renderer into becoming a full form-builder framework. That road ends badly. The renderer stays simple *because* there is a way around it.
 
 ### 4.3 Tool Handler
 
@@ -256,6 +329,15 @@ final class AiGateway
 ```
 
 Note that the gateway calls `executeOn($this->factory, $model)` and never names a capability. It has no `match` statement, no list of capabilities, and no way to find out how many exist. That is the property §6 is protecting.
+
+**Cache and fallback interleave in one pass.** The sketch above resolves a single model; the implementation resolves a *chain* (§8.1) and walks it, consulting each model's cache immediately before that model would be called. Separating the two — scanning every cache first, then attempting each model — looks equivalent and is not: it serves a cached **fallback** answer while the preferred model is perfectly healthy, silently returning worse output. Checking each cache in preference order keeps both properties that matter:
+
+- the first choice wins whenever it can answer;
+- a fallback still uses its own cache, so a persistently-down primary does not mean re-buying the fallback on every call.
+
+**Failures are logged per attempt, not per call.** A chain that tries three models writes three rows. Logging once per call would hide a vendor that is quietly failing over on every single request — the cost shows up on the invoice, and nowhere else.
+
+**Fallback is for transport failures only.** A rate limit, an outage, or a timeout might not affect the next vendor. A malformed request or a content refusal will fail identically everywhere, so walking the chain only multiplies the latency of a certain failure — and shopping a refused prompt around other models is precisely the wrong behaviour to build in.
 
 **Why no `complete()` method.** An earlier draft gave the gateway `complete()`, then would have needed `translate()`, `generateVideo()`, `transcribe()`, `describeImage()`… Every new modality would edit a central class — a direct violation of Open/Closed. The gateway must not know how many kinds of AI work exist.
 
@@ -532,7 +614,7 @@ Not every capability behaves like request/response. Three patterns exist, and th
 | Pattern | Example | Mechanism |
 |---|---|---|
 | **Sync** | translation, short text | request → response |
-| **Streaming** | text generation | `wire:stream` (web) / SSE (API) |
+| **Streaming** | text generation | SSE, for our website and third parties alike |
 | **Async job** | video, image | queue + `ai_jobs` table + polling |
 
 **v1 ships sync and streaming only.** Async jobs are not built — but the seam is left open: `AiJobHandle` exists as a return type and `execution => 'async'` exists in the model config. Adding the first async tool then becomes a feature, not a rewrite. Attempting all three in v1 is how v1 never ships.
@@ -631,6 +713,10 @@ public function stream(StreamableRequest $request, RunContext $ctx): \Generator
     }
 }
 ```
+
+**An aborted stream has no result.** The gateway's `stream()` returns the assembled result through the generator, or `null` when the caller disconnected partway. Inventing a result from the buffer would cache a truncation and serve it to everyone who asks next — so a partial stream is logged with `status = aborted` and deliberately not cached.
+
+**Streaming cannot fall back once a fragment has left.** The chain is walked exactly as in §5, but only until the first `yield`. After that, switching models would re-send text the caller has already rendered, and bill us twice for it. Before the first fragment, a switch is invisible and free.
 
 Three rules that are easy to get wrong and expensive when you do:
 
@@ -830,13 +916,13 @@ The reference point for the catalog UI is a directory site like Futurepedia — 
 **A directory's asset is volume**: thousands of other people's tools. The visitor arrives, takes a link, and leaves.
 **This platform's asset is function**: a handful of tools that actually do the work. The visitor arrives and stays.
 
-So the category-grid homepage is *not* copied. A grid showing `(1)` beside each subcategory looks abandoned; that pattern only works at a thousand rows. **The homepage leads with a working tool** — a live input box, above the fold, no signup. Time-to-value is zero clicks, which is the only advantage available against a site with a thousand times more content. The category grid lives on `/tools`.
+So the category-grid homepage is *not* copied. A grid showing `(1)` beside each subcategory looks abandoned; that pattern only works at a thousand rows. **The homepage leads with a working tool** — a live input box, above the fold, usable as a guest (§18.1). Time-to-value is zero clicks. The category grid lives on `/tools`.
 
 What *is* borrowed: the URL hierarchy, the card component, and the SEO discipline.
 
 ### 14.2 The registry powers the catalog
 
-`ToolRegistry` is the single source of truth for `/tools`, category pages, `/tools/{slug}`, the navigation, `sitemap.xml`, and per-page JSON-LD. This is what makes the registry worth building rather than a `config/tools.php` array.
+`ToolRegistry` is the single source of truth for `/tools`, category pages, `/tools/{slug}`, the navigation, `sitemap.xml`, and per-page JSON-LD. The API serves it; Next.js renders it.
 
 ### 14.3 Behaviour and content are separate
 
@@ -845,16 +931,17 @@ app/Tools/Definitions/HotelDescriptionTool.php   → behaviour: slug, schema, mo
 resources/content/tools/hotel-description.md     → content: SEO copy, use cases, FAQ
 ```
 
-Marketing copy must not live inside a PHP class — otherwise fixing one sentence requires a deploy. The registry merges the two. This split is also what makes programmatic landing pages possible later.
+Marketing copy must not live inside a PHP class — otherwise fixing one sentence requires a deploy. Content lives on the Laravel side and is served through the API, so the admin panel can take it over later without the frontend changing.
 
-SEO baseline: `sitemap.xml` generated from the registry, `SoftwareApplication` and `FAQPage` JSON-LD per tool page, unique meta per page, server-rendered throughout.
+### 14.4 Next.js
 
-### 14.4 Livewire
+Chosen over Livewire (phase 3) because the frontend is the part of a product that changes most, and React/Next.js is where the ecosystem, the components and the hiring market are.
 
-- Stays inside Laravel/Blade — no build step, no SPA complexity
-- Server-rendered, so SEO works by default
-- `wire:stream` handles token-by-token output
-- The REST API exists in parallel for future consumers, never as a dependency of the web UI
+- **App Router, TypeScript, Tailwind.** The palette and surface tokens from phase 3 carry over (OKLCH `brand`, `sun`, `bloom`; solid tinted surfaces; light/dark/system).
+- **Server components for every public page** — they fetch from the API on the server, so Google receives finished HTML.
+- **Client components only where there is interaction** — the chat, settings pills, menus.
+- **Streaming:** the browser POSTs a run to the API and reads the SSE stream with `fetch` — answer text and model thinking arrive as separate events (§10).
+- **One server.** Laravel (FrankenPHP, whose built-in Caddy also terminates HTTPS) and Next.js (Node) run side by side; the proxy sends `/api/*` and `/sanctum/*` to Laravel and the rest to Next.js. One repository: Laravel at the root, the Next.js app in `frontend/`.
 
 ---
 
@@ -867,9 +954,10 @@ app/
 │   ├── ModelRegistry.php                ✅
 │   ├── ResolvedModel.php                ✅
 │   ├── ProviderFactory.php              ✅
-│   ├── AiGateway.php                    ← phase 2
-│   ├── ModelPolicy.php                  ← phase 2
-│   ├── AiResponseCache.php              ← phase 2
+│   ├── AiGateway.php                    ✅  run() + stream()
+│   ├── ModelPolicy.php                  ✅
+│   ├── ModelResolver.php                ✅  policy + tier + user choice
+│   ├── AiResponseCache.php              ✅
 │   ├── Contracts/
 │   │   ├── AiProvider.php               ✅
 │   │   ├── TextGenerator.php            ✅
@@ -899,11 +987,12 @@ app/
 │   └── Exceptions/                      ✅
 │
 ├── Usage/                               # quota + cost control
-│   ├── QuotaGuard.php
-│   ├── Reservation.php
-│   ├── UnitPricing.php
-│   ├── CostCircuitBreaker.php
-│   └── RunContext.php
+│   ├── RunContext.php                   ✅  caller, tier, policy
+│   ├── UsageRecord.php                  ✅
+│   ├── CostCircuitBreaker.php           ← phase 3
+│   ├── QuotaGuard.php                   ← phase 4
+│   ├── Reservation.php                  ← phase 4
+│   └── UnitPricing.php                  ← phase 4
 │
 ├── Tools/                               # tool definitions + registry
 │   ├── Contracts/ToolInterface.php
@@ -925,17 +1014,21 @@ app/
 │       ├── RuleBasedClassifier.php
 │       └── AiClassifier.php
 │
-├── Http/Controllers/Api/V1/
-├── Livewire/
+├── Http/Controllers/Api/               # the only entry point: JSON + SSE
 ├── Models/
-├── Repositories/UsageLogRepository.php
+├── Repositories/                        ✅  interface + Eloquent impl
 └── Providers/
     ├── AiServiceProvider.php            ✅  deferred; factory + model registry
     └── ToolServiceProvider.php          ← phase 3; tool discovery + registry
 
 config/ai.php
 resources/content/tools/*.md
-routes/web.php · routes/api.php
+routes/api.php
+
+frontend/                                # Next.js app: every page, SSR
+├── app/                                 # routes: /, /tools, /tools/[slug], ...
+├── components/                          # chat, settings pills, result views
+└── lib/api.ts                           # the one place that calls Laravel
 ```
 
 Two placements worth noting:
@@ -973,7 +1066,6 @@ Requires: `user_wallets` and `credit_transactions` with an auditable ledger, a p
 - **Saved history** — `tool_runs`, plus shareable public result pages with SEO value
 - **Admin panel** — moves model metadata from `config/ai.php` into `ai_models`
 - **Additional tools** — one definition class and one handler each
-- **Separate JS frontend** — the REST API already exists if Livewire is outgrown
 - **Programmatic SEO** — generated landing pages per tool and per use case
 
 ---
@@ -985,13 +1077,18 @@ Ordered so that something demonstrable exists early. Running out of momentum bef
 | Phase | Work | Deliverable |
 |---|---|---|
 | 1 ✅ | `BaseHttpClient` + `ServerSentEvents` + exception layer + `Capability` + capability interfaces + `AiRequest` + `ModelRegistry` + two real providers (`Anthropic` sync **and** stream, `DeepL` translation-only) + `ProviderFactory` + `config/ai.php` | AI core + transport |
-| 2 | `AiGateway` + `AiResponseCache` + `ModelPolicy` + `usage_logs` + `UsageLogRepository` | Mediation layer |
-| 3 | `ToolRegistry` + `Field` schema + generic form renderer + first tool (Text Transformer) + Livewire page with `wire:stream` + **`throttle` on tool routes + daily spend cap** | 🎯 **First working, demoable thing** |
-| 4 | Auth (Breeze) + `plans` + `usage_counters` + reserve/commit + guest IP limits + per-user quotas | Business model |
-| 5 | Catalog UI (grid, categories, tool pages) + content files + SEO (sitemap, JSON-LD, meta) | A real site |
-| 6 | REST API v1 behind `X-Api-Key`, including SSE streaming | Second entry point |
-| 7 | Hotel Description + Room Normalizer (with `RuleBasedClassifier` fallback chain) | 3 tools |
-| 8 | Tests, README, deploy on FrankenPHP | Published |
+| 2 ✅ | `AiGateway` (sync + stream) + `AiResponseCache` + `ModelPolicy` + `ModelResolver` + `RunContext` + `usage_logs` + `UsageLogRepository` | Mediation layer |
+| 3 ✅ | `ToolRegistry` + `Field` schema + chat-style workspace (Livewire) + first tool (Text Transformer) + per-caller throttle + daily spend cap + providers/models/tools in the database + `OpenAiCompatibleProvider` with free models | 🎯 First working, demoable thing |
+| 4 ✅ | Accounts (Fortify) + guest allowance + per-IP limits on sign-up and reset links — then **the API**: Sanctum SPA auth, catalog endpoints, a tool-run endpoint that streams SSE (`POST /api/v1/tools/{slug}/runs`: `thinking` / `text` / `done` / `error` events) | Laravel as an API |
+| 5 | **Next.js frontend** in `frontend/`: layout and theme, auth pages, homepage, tool page with the chat; Livewire and Blade UI removed | The new website, same features |
+| 6 | **Saved chat history per user, per tool** (`conversations`, `conversation_messages`) + `plans` + `usage_counters` + reserve/commit + per-user quotas | Business model |
+| 7 | General tools: Paraphrasing Tool, Summarizer, Grammar Checker (diff view), Email Writer (variant tabs) — replacing Text Transformer | Search traffic |
+| 8 | Hospitality tools: Hotel Description Generator, Review Reply Generator, Room Name Normalizer (table view, `RuleBasedClassifier` fallback chain) | The specialist edge |
+| 9 | Catalog and content: `/tools`, categories, content files, static pages, sitemap, JSON-LD, OG images | A real site |
+| 10 | Public API for third parties behind `X-Api-Key` | Second kind of client |
+| 11 | Deploy on one server (FrankenPHP + Node), README, launch checklist | Published |
+
+**Why the API comes before the new frontend, and both before more tools.** Every tool and every page built on Livewire would be rebuilt; building the API first means the Next.js app has something real to talk to from its first page, and the seven tools are then written once.
 
 **Phase 1 is foundational** — transport and the capability model are what everything else rests on. **Phase 3 is the morale checkpoint**: after it, there is a live URL to show.
 
@@ -1000,6 +1097,29 @@ Ordered so that something demonstrable exists early. Running out of momentum bef
 **Phase 1 shipped two providers rather than one.** DeepL is roughly a hundred lines and implements `Translator` only, which is what turns the capability argument from a claim into something the compiler enforces. With a single text provider, nothing would have proved that a provider *cannot* be handed work it does not do.
 
 The REST API stays in v1 but lands after the tools exist, because an API designed before its payloads are known ships as `v2` before launch.
+
+### 18.1 Phase 4 requirements (decided 2026-10-10)
+
+These supersede the guest tier in §11.1 and the deferred `tool_runs` table in §13.2.
+
+**Guests may try, accounts are for using** (revised 2026-10-11; first drafted as "no guests"). Like ChatGPT, Copilot and Perplexity, the homepage opens on a working chat, not a login form. A visitor gets a few free runs a day (`tools.guest_runs_per_day`, default 3) on free models, with nothing saved. When they are used up, sending shows a sign-in card in the chat; the unsent message is kept in the session and is back in the message box after signing in. Signing up puts the user on the free plan. Consequences:
+
+- `RunContext::forGuest()` stays for visitors; a signed-in user's runs carry their `userId`.
+- The guest allowance is metered in `ToolRunner` by IP hash, like the throttle, so every entry point inherits it and clearing cookies does not reset it.
+- Quotas beyond that allowance are per user. The per-IP throttle also guards the login and signup routes.
+
+**Saved chat history.** Every conversation is stored per user, so a reply never lives only in the browser. Today a dropped connection or a page reload loses the conversation; with history it is one click away.
+
+- `conversations` — `user_id`, `tool_id`, `title` (from the first message), timestamps. Listed in the sidebar, newest first, like any chat product.
+- `conversation_messages` — `conversation_id`, `role`, `content`, `input` (JSON: the validated field values a user turn was sent with), `status` (`done` / `failed`), the model that answered, and the `usage_logs` row it produced.
+- A reply is written when the stream finishes *or fails*, never only held in component state.
+- Editing a sent message (already in the UI) becomes "edit and resend" within the stored conversation.
+
+**Workspace behaviour carried into phase 4** (built in phase 3):
+
+- One settings row under the message box: model first, then the tool's fields in schema order, at most two visible, then "⋯" for a panel with every setting.
+- Tapping a sent message offers Copy and Edit. Copy falls back to `execCommand` on non-HTTPS origins.
+- A reply whose request dies is marked failed in place instead of reloading the page.
 
 ---
 
@@ -1011,6 +1131,9 @@ The REST API stays in v1 but lands after the tools exist, because an API designe
 - **Operational Awareness** — quota reservation with refund-on-failure, spend circuit breakers, abort detection on streams, Octane-safe design
 - **SEO** — server-rendered, registry-driven sitemap and structured data
 
-**Next step:** Phase 2 — `AiGateway`, `AiResponseCache`, `ModelPolicy`, and `usage_logs`.
+**Next step:** Phase 5 — the Next.js frontend in `frontend/`, talking to the phase 4 API (§2, §14, §18).
 
-Phase 1 is complete: transport, the capability model, two providers, and 72 tests covering them.
+Phases 1–4 are complete: transport, the capability model, the gateway with caching,
+fallback and usage logging, the tool layer, a chat-style workspace, providers, models
+and tools in the database, seven free models behind one OpenAI-compatible driver,
+accounts with a guest allowance, and the JSON + SSE API.

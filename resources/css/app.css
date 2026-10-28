@@ -3,7 +3,287 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
+/*
+ * Dark mode is a class on <html>, not only the OS setting, so the user can
+ * override it from the profile menu. The class is set before first paint by
+ * the inline script in the layout — "system" simply mirrors the OS.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    /* Vazirmatn covers Persian and Arabic, which Instrument Sans does not. */
+    --font-sans: 'Instrument Sans', 'Vazirmatn', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+        'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /*
+     * Palette: blue leads, yellow warms, a touch of violet-pink ties them
+     * together. Defined in OKLCH (as Bootstrap 6 now does) so tints mixed
+     * from these stay perceptually even in both themes.
+     */
+    --color-brand: oklch(0.6 0.19 256);
+    --color-brand-soft: oklch(0.72 0.13 250);
+    --color-sun: oklch(0.86 0.16 88);
+    --color-bloom: oklch(0.66 0.2 318);
+
+    /*
+     * `backwards`, never `both`: an element that keeps an animated transform
+     * after the animation ends becomes its own layer and the containing block
+     * for fixed children — which trapped the settings sheet inside the
+     * message box and let a later message cover an earlier message's menu.
+     */
+    --animate-rise: rise 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+    --animate-pop: pop 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+    --animate-slide-in: slide-in 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+    --animate-float: float 6s ease-in-out infinite;
+}
+
+[x-cloak] {
+    display: none !important;
+}
+
+/*
+ * Surfaces, after Bootstrap 6: solid, faintly tinted with the brand colour
+ * (color-mix in OKLCH), a crisp hairline border, and a light top edge that
+ * catches the eye like the rim of glass — without the see-through that made
+ * text behind menus show through.
+ *
+ * light-dark() picks the right value from the color-scheme set on <html>,
+ * so each surface is one declaration for both themes.
+ */
+@utility surface {
+    background-color: light-dark(
+        color-mix(in oklch, var(--color-brand) 2.5%, white),
+        color-mix(in oklch, var(--color-brand) 7%, var(--color-zinc-900))
+    );
+    border: 1px solid light-dark(
+        color-mix(in oklch, var(--color-brand) 12%, var(--color-zinc-200)),
+        color-mix(in oklch, var(--color-brand) 18%, var(--color-zinc-800))
+    );
+    box-shadow:
+        inset 0 1px 0 light-dark(rgb(255 255 255 / 0.9), rgb(255 255 255 / 0.06)),
+        0 10px 30px -12px light-dark(color-mix(in oklch, var(--color-brand) 22%, transparent), rgb(0 0 0 / 0.55)),
+        0 2px 6px -2px light-dark(rgb(24 24 27 / 0.06), rgb(0 0 0 / 0.3));
+}
+
+/* Brand gradient, interpolated in OKLCH so blue → yellow stays clean, not grey. */
+@utility bg-brand-gradient {
+    background-image: linear-gradient(135deg in oklch, var(--color-brand), var(--color-bloom) 55%, var(--color-sun));
+}
+
+@layer base {
+    html {
+        color-scheme: light;
+    }
+
+    html.dark {
+        color-scheme: dark;
+    }
+
+    ::selection {
+        background: color-mix(in oklch, var(--color-brand) 22%, transparent);
+    }
+}
+
+@layer components {
+    .brand-mark {
+        @apply bg-brand-gradient grid shrink-0 place-items-center text-white shadow-md shadow-brand/30;
+        background-size: 160% 160%;
+        animation: sheen 8s ease-in-out infinite;
+    }
+
+    .icon-button {
+        @apply grid size-9 shrink-0 place-items-center rounded-xl text-zinc-500 transition hover:bg-brand/8 hover:text-brand active:scale-90 dark:text-zinc-400 dark:hover:bg-brand/15 dark:hover:text-brand-soft;
+    }
+
+    /*
+     * min-w-0 + max-w-full let a pill shrink inside a crowded row instead of
+     * spilling over its neighbour; the label inside truncates.
+     */
+    .pill {
+        @apply inline-flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-full border border-zinc-900/8 bg-white px-3 text-[13px] font-medium whitespace-nowrap text-zinc-600 shadow-xs transition hover:-translate-y-px hover:border-brand/30 hover:text-zinc-900 hover:shadow-md hover:shadow-brand/10 active:translate-y-0 active:scale-[0.97] dark:border-white/8 dark:bg-zinc-800/80 dark:text-zinc-300 dark:hover:border-brand-soft/30 dark:hover:text-white;
+    }
+
+    .menu {
+        @apply surface absolute z-30 w-56 rounded-2xl p-1.5;
+    }
+
+    .menu-item {
+        @apply flex w-full items-center justify-between gap-3 rounded-xl px-2.5 py-2 text-left text-sm transition hover:bg-brand/8 active:scale-[0.98] dark:hover:bg-brand/15;
+    }
+
+    /* The message box: a solid surface that lights up blue while you type. */
+    .composer {
+        @apply surface rounded-[26px] p-2 transition-[box-shadow,border-color] duration-300;
+
+        &:focus-within {
+            border-color: color-mix(in oklch, var(--color-brand) 45%, transparent);
+            box-shadow:
+                inset 0 1px 0 light-dark(rgb(255 255 255 / 0.9), rgb(255 255 255 / 0.06)),
+                0 0 0 4px color-mix(in oklch, var(--color-brand) 12%, transparent),
+                0 16px 40px -14px color-mix(in oklch, var(--color-brand) 45%, transparent);
+        }
+    }
+
+    /* A single-line input on the sign-in pages; lights up like the message box. */
+    .field {
+        @apply block h-12 w-full rounded-2xl border border-zinc-900/10 bg-white px-4 text-[15px] shadow-xs transition-[box-shadow,border-color] duration-200 placeholder:text-zinc-400 focus:border-brand/50 focus:ring-4 focus:ring-brand/12 focus:outline-none dark:border-white/10 dark:bg-zinc-900 dark:placeholder:text-zinc-500;
+
+        &[aria-invalid='true'] {
+            @apply border-red-500/60 focus:ring-red-500/12;
+        }
+    }
+
+    .primary-button {
+        @apply bg-brand-gradient flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold text-white shadow-md shadow-brand/30 transition duration-200 hover:shadow-lg hover:shadow-brand/40 active:scale-[0.98];
+        background-size: 160% 160%;
+        animation: sheen 6s ease-in-out infinite;
+    }
+
+    .send-button {
+        @apply bg-brand-gradient grid size-9 shrink-0 place-items-center rounded-full text-white shadow-md shadow-brand/35 transition duration-200 hover:scale-110 hover:rotate-[-8deg] hover:shadow-lg active:scale-90;
+        background-size: 160% 160%;
+        animation: sheen 6s ease-in-out infinite;
+
+        &:disabled {
+            @apply cursor-not-allowed bg-none bg-zinc-200 text-zinc-400 shadow-none hover:scale-100 hover:rotate-0 dark:bg-zinc-800 dark:text-zinc-600;
+            animation: none;
+        }
+    }
+
+    /*
+     * The empty-state backdrop: blurred blobs of blue, yellow and a little
+     * violet drifting slowly. Low opacity — felt, not seen.
+     */
+    .aurora {
+        @apply pointer-events-none absolute inset-0 -z-10 overflow-hidden;
+
+        & > span {
+            @apply absolute size-[28rem] rounded-full opacity-25 blur-3xl dark:opacity-[0.18];
+            animation: drift 18s ease-in-out infinite alternate;
+        }
+
+        /*
+         * Blue top-left, yellow bottom-right, violet small in between. Kept
+         * apart on purpose: where blue and yellow overlap they mix to khaki.
+         */
+        & > span:nth-child(1) { @apply -top-32 -left-24 bg-brand; }
+        & > span:nth-child(2) { @apply -right-32 -bottom-40 size-[24rem] bg-sun opacity-30 dark:opacity-[0.07]; animation-duration: 22s; animation-delay: -6s; }
+        & > span:nth-child(3) { @apply top-[18%] -right-40 size-[18rem] bg-bloom opacity-[0.12] dark:opacity-[0.1]; animation-duration: 26s; animation-delay: -12s; }
+    }
+
+    /* The reply avatar while the model works: a turning ring in brand colours. */
+    .thinking-orb {
+        @apply relative;
+
+        &::before {
+            content: '';
+            @apply absolute -inset-[3px] -z-10 rounded-full;
+            background: conic-gradient(from 0deg in oklch, var(--color-brand), var(--color-bloom), var(--color-sun), var(--color-brand));
+            animation: spin 1.8s linear infinite;
+        }
+
+        &::after {
+            content: '';
+            @apply absolute -inset-2 -z-20 rounded-full bg-brand/30 blur-md;
+            animation: breathe 1.8s ease-in-out infinite;
+        }
+    }
+
+    /* Shimmering status text: "Thinking…" or the model's latest thought. */
+    .shimmer-text {
+        background-image: linear-gradient(90deg, var(--color-zinc-400), var(--color-brand) 45%, var(--color-sun) 55%, var(--color-zinc-400));
+        @apply bg-clip-text text-transparent;
+        background-size: 200% 100%;
+        animation: shimmer 1.8s linear infinite;
+    }
+
+    /* Once answer text arrives, a caret follows it. */
+    .stream-target:not(:empty)::after {
+        content: '';
+        @apply ms-0.5 inline-block h-[1.1em] w-[0.5em] translate-y-[0.2em] rounded-[2px] bg-brand;
+        animation: caret 1s step-end infinite;
+    }
+
+    /* Markdown in replies — a small, chat-sized cousin of a prose plugin. */
+    .prose-chat {
+        @apply text-[15px] leading-7 break-words;
+
+        & > * + * { @apply mt-4; }
+        & h1, & h2, & h3, & h4 { @apply font-semibold tracking-tight; }
+        & h1 { @apply text-xl; }
+        & h2 { @apply text-lg; }
+        & h3, & h4 { @apply text-base; }
+        & ul { @apply list-disc ps-6; }
+        & ol { @apply list-decimal ps-6; }
+        & li + li { @apply mt-1.5; }
+        & li::marker { @apply text-brand; }
+        & strong { @apply font-semibold; }
+        & a { @apply text-brand underline decoration-brand/30 underline-offset-2 hover:decoration-current dark:text-brand-soft; }
+        & blockquote { @apply border-s-2 border-sun ps-4 text-zinc-600 dark:text-zinc-400; }
+        & hr { @apply border-zinc-200 dark:border-zinc-800; }
+        & :not(pre) > code { @apply rounded-md bg-brand/8 px-1.5 py-0.5 text-[0.875em] dark:bg-brand/15; }
+        & pre { @apply overflow-x-auto rounded-xl bg-zinc-900/4 p-4 text-sm leading-6 dark:bg-white/5; }
+        & table { @apply w-full border-collapse text-sm; }
+        & th, & td { @apply border border-zinc-200 px-3 py-1.5 text-start dark:border-zinc-800; }
+    }
+}
+
+@keyframes shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+}
+
+@keyframes caret {
+    50% { opacity: 0; }
+}
+
+@keyframes rise {
+    from { opacity: 0; transform: translateY(10px); filter: blur(4px); }
+}
+
+@keyframes pop {
+    from { opacity: 0; transform: scale(0.92); }
+}
+
+@keyframes slide-in {
+    from { opacity: 0; transform: translateX(16px) scale(0.98); }
+}
+
+@keyframes float {
+    50% { transform: translateY(-6px); }
+}
+
+@keyframes sheen {
+    50% { background-position: 100% 100%; }
+}
+
+@keyframes breathe {
+    50% { opacity: 0.35; transform: scale(1.15); }
+}
+
+@keyframes drift {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to { transform: translate3d(6%, 8%, 0) scale(1.15); }
+}
+
+@keyframes spin {
+    to { transform: rotate(1turn); }
+}
+
+/* The theme switch (applyTheme()): a quick fade between two snapshots. */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 0.25s;
+    animation-timing-function: ease-out;
+}
+
+/* Motion is a nicety. Anyone who has asked their OS for less gets none. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+    }
 }
